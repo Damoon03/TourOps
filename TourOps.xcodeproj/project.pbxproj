@@ -29,19 +29,52 @@
 		CE366DEF3039C7FD00167ACB /* TourOpsUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TourOpsUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		CE366E273039F77700167ACB /* Exceptions for "TourOpsTests" folder in "TourOpsTests" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				TourOpsTests.swift,
+			);
+			target = CE366DE43039C7FD00167ACB /* TourOpsTests */;
+		};
+		CE366E283039F77700167ACB /* Exceptions for "TourOpsUITests" folder in "TourOps" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				TourOpsUITests.swift,
+				TourOpsUITestsLaunchTests.swift,
+			);
+			target = CE366DD53039C7FC00167ACB /* TourOps */;
+		};
+		CE366E293039F77700167ACB /* Exceptions for "TourOpsUITests" folder in "TourOpsUITests" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				TourOpsUITests.swift,
+				TourOpsUITestsLaunchTests.swift,
+			);
+			target = CE366DEE3039C7FD00167ACB /* TourOpsUITests */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		CE366DD83039C7FC00167ACB /* TourOps */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = TourOps;
 			sourceTree = "<group>";
 		};
-		CE366DE83039C7FD00167ACB /* TourOpsTests */ = {
+		CE366E203039F77700167ACB /* TourOpsTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				CE366E273039F77700167ACB /* Exceptions for "TourOpsTests" folder in "TourOpsTests" target */,
+			);
 			path = TourOpsTests;
 			sourceTree = "<group>";
 		};
-		CE366DF23039C7FD00167ACB /* TourOpsUITests */ = {
+		CE366E233039F77700167ACB /* TourOpsUITests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				CE366E283039F77700167ACB /* Exceptions for "TourOpsUITests" folder in "TourOps" target */,
+				CE366E293039F77700167ACB /* Exceptions for "TourOpsUITests" folder in "TourOpsUITests" target */,
+			);
 			path = TourOpsUITests;
 			sourceTree = "<group>";
 		};
@@ -76,9 +109,9 @@
 			isa = PBXGroup;
 			children = (
 				CE366DD83039C7FC00167ACB /* TourOps */,
-				CE366DE83039C7FD00167ACB /* TourOpsTests */,
-				CE366DF23039C7FD00167ACB /* TourOpsUITests */,
 				CE366DD73039C7FC00167ACB /* Products */,
+				CE366E203039F77700167ACB /* TourOpsTests */,
+				CE366E233039F77700167ACB /* TourOpsUITests */,
 			);
 			sourceTree = "<group>";
 		};
@@ -109,6 +142,7 @@
 			);
 			fileSystemSynchronizedGroups = (
 				CE366DD83039C7FC00167ACB /* TourOps */,
+				CE366E233039F77700167ACB /* TourOpsUITests */,
 			);
 			name = TourOps;
 			packageProductDependencies = (
@@ -130,9 +164,6 @@
 			dependencies = (
 				CE366DE73039C7FD00167ACB /* PBXTargetDependency */,
 			);
-			fileSystemSynchronizedGroups = (
-				CE366DE83039C7FD00167ACB /* TourOpsTests */,
-			);
 			name = TourOpsTests;
 			packageProductDependencies = (
 			);
@@ -152,9 +183,6 @@
 			);
 			dependencies = (
 				CE366DF13039C7FD00167ACB /* PBXTargetDependency */,
-			);
-			fileSystemSynchronizedGroups = (
-				CE366DF23039C7FD00167ACB /* TourOpsUITests */,
 			);
 			name = TourOpsUITests;
 			packageProductDependencies = (
