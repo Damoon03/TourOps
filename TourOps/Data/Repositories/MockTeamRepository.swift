@@ -60,6 +60,3 @@ final class MockTeamRepository: TeamRepositoryProtocol {
     }
 }
 
-enum RepositoryError: Error {
-    case notFound
-}
