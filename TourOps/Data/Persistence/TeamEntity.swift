@@ -10,7 +10,7 @@ import SwiftData
 
 @Model
 final class TeamEntity {
-    var id: UUID
+    @Attribute(.unique) var id: UUID
     var name: String
     var genre: String
     var country: String
