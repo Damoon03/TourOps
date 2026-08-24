@@ -12,7 +12,19 @@ import Testing
 struct TeamListViewModelTests {
 
     final class TestTeamRepository: TeamRepositoryProtocol {
-        func fetchTeam(id: UUID) async throws -> TourOps.Team {
+
+        var teams: [Team] = []
+        var error: Error?
+
+        func fetchTeams() async throws -> [Team] {
+            if let error {
+                throw error
+            }
+
+            return teams
+        }
+
+        func fetchTeam(id: UUID) async throws -> Team {
             if let error {
                 throw error
             }
@@ -22,19 +34,6 @@ struct TeamListViewModelTests {
             }
 
             return team
-        }
-        
-
-        var teams: [Team] = []
-        var error: Error?
-        
-
-        func fetchTeams() async throws -> [Team] {
-            if let error {
-                throw error
-            }
-
-            return teams
         }
 
         func createTeam(_ team: Team) async throws {
@@ -57,10 +56,11 @@ struct TeamListViewModelTests {
             teams.remove(at: index)
         }
     }
-    
+
     @Test
     @MainActor
     func loadTeamsSuccessfullyUpdatesTeams() async {
+
         let repository = TestTeamRepository()
 
         let team1 = Team(
@@ -88,12 +88,15 @@ struct TeamListViewModelTests {
         await viewModel.loadTeams()
 
         #expect(viewModel.teams == [team1, team2])
+        #expect(viewModel.isLoading == false)
     }
-    
+
     @Test
     @MainActor
     func loadTeamsFailsWithError() async {
+
         let repository = TestTeamRepository()
+
         repository.error = RepositoryError.notFound
 
         let viewModel = TeamListViewModel(repository: repository)
@@ -102,5 +105,6 @@ struct TeamListViewModelTests {
 
         #expect(viewModel.errorMessage != nil)
         #expect(viewModel.teams.isEmpty)
+        #expect(viewModel.isLoading == false)
     }
 }
