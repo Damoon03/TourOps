@@ -38,10 +38,19 @@ final class SwiftDataTeamRepository: TeamRepositoryProtocol {
     }
 
     func createTeam(_ team: Team) async throws {
+        let teamID = team.id
+
+        let descriptor = FetchDescriptor<TeamEntity>(
+            predicate: #Predicate { $0.id == teamID }
+        )
+
+        if let _ = try modelContext.fetch(descriptor).first {
+            throw RepositoryError.duplicate
+        }
+
         let entity = TeamEntity(team: team)
 
         modelContext.insert(entity)
-
         try modelContext.save()
     }
 

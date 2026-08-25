@@ -11,6 +11,7 @@ import SwiftData
 @main
 struct TourOpsApp: App {
 
+    private let modelContainer: ModelContainer
     private let teamRepository: SwiftDataTeamRepository
 
     init() {
@@ -21,9 +22,12 @@ struct TourOpsApp: App {
 
             let container = try ModelContainer(for: schema)
 
+            self.modelContainer = container
+
             self.teamRepository = SwiftDataTeamRepository(
                 modelContext: container.mainContext
             )
+
         } catch {
             fatalError("Failed to create ModelContainer: \(error)")
         }
