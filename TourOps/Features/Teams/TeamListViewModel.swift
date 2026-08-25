@@ -34,4 +34,27 @@ final class TeamListViewModel {
 
         isLoading = false
     }
+
+    func createTeam(
+        name: String,
+        genre: String,
+        country: String,
+        city: String
+    ) async {
+        let team = Team(
+            id: UUID(),
+            name: name,
+            genre: genre,
+            country: country,
+            city: city,
+            createdAt: Date()
+        )
+
+        do {
+            try await repository.createTeam(team)
+            await loadTeams()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
 }

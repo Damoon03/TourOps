@@ -8,45 +8,45 @@
 import SwiftUI
 
 struct TeamListView: View {
+
+    let repository: TeamRepositoryProtocol
+
     @State private var viewModel: TeamListViewModel
+    @State private var showingCreateTeam = false
 
     init(repository: TeamRepositoryProtocol) {
+        self.repository = repository
         _viewModel = State(
-            initialValue: TeamListViewModel(repository: repository)
+            initialValue: TeamListViewModel(
+                repository: repository
+            )
         )
     }
 
     var body: some View {
         NavigationStack {
-            Group {
-                if viewModel.isLoading {
-                    ProgressView()
-                } else if let errorMessage = viewModel.errorMessage {
-                    ContentUnavailableView(
-                        "Something went wrong",
-                        systemImage: "exclamationmark.triangle",
-                        description: Text(errorMessage)
-                    )
-                } else if viewModel.teams.isEmpty {
-                    ContentUnavailableView(
-                        "No Teams",
-                        systemImage: "person.3",
-                        description: Text("Your teams will appear here.")
-                    )
-                } else {
-                    List(viewModel.teams) { team in
-                        VStack(alignment: .leading) {
-                            Text(team.name)
-                                .font(.headline)
+            List(viewModel.teams) { team in
+                VStack(alignment: .leading) {
+                    Text(team.name)
+                        .font(.headline)
 
-                            Text("\(team.city), \(team.country)")
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
+                    Text("\(team.genre) • \(team.city)")
+                        .font(.subheadline)
                 }
             }
             .navigationTitle("Teams")
+            .toolbar {
+                ToolbarItem(placement: .primaryAction) {
+                    Button {
+                        showingCreateTeam = true
+                    } label: {
+                        Image(systemName: "plus")
+                    }
+                }
+            }
+            .sheet(isPresented: $showingCreateTeam) {
+                CreateTeamView(viewModel: viewModel)
+            }
             .task {
                 await viewModel.loadTeams()
             }
