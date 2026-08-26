@@ -69,7 +69,7 @@ struct CreateTeamView: View {
             isPresented: $showingError
         ) {
             Button("OK", role: .cancel) {
-                viewModel.errorMessage = nil
+                viewModel.dismissError()
             }
         } message: {
             Text(viewModel.errorMessage ?? "Something went wrong.")

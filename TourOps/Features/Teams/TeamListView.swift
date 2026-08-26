@@ -16,6 +16,7 @@ struct TeamListView: View {
 
     init(repository: TeamRepositoryProtocol) {
         self.repository = repository
+
         _viewModel = State(
             initialValue: TeamListViewModel(
                 repository: repository
@@ -25,19 +26,37 @@ struct TeamListView: View {
 
     var body: some View {
         NavigationStack {
-            List(viewModel.teams) { team in
-                NavigationLink {
-                    TeamDetailView(
-                        teamID: team.id,
-                        viewModel: viewModel
+            Group {
+                if viewModel.isLoading {
+                    ProgressView("Loading teams...")
+                } else if let errorMessage = viewModel.errorMessage {
+                    ContentUnavailableView(
+                        "Unable to Load Teams",
+                        systemImage: "exclamationmark.triangle",
+                        description: Text(errorMessage)
                     )
-                } label: {
-                    VStack(alignment: .leading) {
-                        Text(team.name)
-                            .font(.headline)
+                } else if viewModel.teams.isEmpty {
+                    ContentUnavailableView(
+                        "No Teams",
+                        systemImage: "person.3",
+                        description: Text("Create your first team to get started.")
+                    )
+                } else {
+                    List(viewModel.teams) { team in
+                        NavigationLink {
+                            TeamDetailView(
+                                teamID: team.id,
+                                viewModel: viewModel
+                            )
+                        } label: {
+                            VStack(alignment: .leading) {
+                                Text(team.name)
+                                    .font(.headline)
 
-                        Text("\(team.genre) • \(team.city)")
-                            .font(.subheadline)
+                                Text("\(team.genre) • \(team.city)")
+                                    .font(.subheadline)
+                            }
+                        }
                     }
                 }
             }
@@ -59,4 +78,8 @@ struct TeamListView: View {
             }
         }
     }
+}
+
+#Preview {
+    Text("Team List Preview")
 }

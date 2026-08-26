@@ -16,7 +16,7 @@ final class TeamListViewModel {
 
     var teams: [Team] = []
     var isLoading = false
-    var errorMessage: String?
+    private(set) var errorMessage: String?
 
     init(repository: TeamRepositoryProtocol) {
         self.repository = repository
@@ -66,5 +66,9 @@ final class TeamListViewModel {
             errorMessage = error.localizedDescription
             return false
         }
+    }
+
+    func dismissError() {
+        errorMessage = nil
     }
 }
