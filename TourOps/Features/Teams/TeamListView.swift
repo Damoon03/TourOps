@@ -26,12 +26,19 @@ struct TeamListView: View {
     var body: some View {
         NavigationStack {
             List(viewModel.teams) { team in
-                VStack(alignment: .leading) {
-                    Text(team.name)
-                        .font(.headline)
+                NavigationLink {
+                    TeamDetailView(
+                        teamID: team.id,
+                        viewModel: viewModel
+                    )
+                } label: {
+                    VStack(alignment: .leading) {
+                        Text(team.name)
+                            .font(.headline)
 
-                    Text("\(team.genre) • \(team.city)")
-                        .font(.subheadline)
+                        Text("\(team.genre) • \(team.city)")
+                            .font(.subheadline)
+                    }
                 }
             }
             .navigationTitle("Teams")

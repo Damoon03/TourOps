@@ -39,14 +39,17 @@ struct CreateTeamView: View {
 
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Create") {
-                        Task {
-                            await viewModel.createTeam(
-                                name: name,
-                                genre: genre,
-                                country: country,
-                                city: city
-                            )
+                        let team = Team(
+                            id: UUID(),
+                            name: name,
+                            genre: genre,
+                            country: country,
+                            city: city,
+                            createdAt: Date()
+                        )
 
+                        Task {
+                            await viewModel.createTeam(team)
                             dismiss()
                         }
                     }
@@ -55,4 +58,8 @@ struct CreateTeamView: View {
             }
         }
     }
+}
+
+#Preview {
+    Text("Create Team Preview")
 }

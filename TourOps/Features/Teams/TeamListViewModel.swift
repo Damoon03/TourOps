@@ -14,9 +14,9 @@ final class TeamListViewModel {
 
     private let repository: TeamRepositoryProtocol
 
-    private(set) var teams: [Team] = []
-    private(set) var isLoading = false
-    private(set) var errorMessage: String?
+    var teams: [Team] = []
+    var isLoading = false
+    var errorMessage: String?
 
     init(repository: TeamRepositoryProtocol) {
         self.repository = repository
@@ -35,23 +35,27 @@ final class TeamListViewModel {
         isLoading = false
     }
 
-    func createTeam(
-        name: String,
-        genre: String,
-        country: String,
-        city: String
-    ) async {
-        let team = Team(
-            id: UUID(),
-            name: name,
-            genre: genre,
-            country: country,
-            city: city,
-            createdAt: Date()
-        )
-
+    func createTeam(_ team: Team) async {
         do {
             try await repository.createTeam(team)
+            await loadTeams()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    func updateTeam(_ team: Team) async {
+        do {
+            try await repository.updateTeam(team)
+            await loadTeams()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    func deleteTeam(_ team: Team) async {
+        do {
+            try await repository.deleteTeam(id: team.id)
             await loadTeams()
         } catch {
             errorMessage = error.localizedDescription
