@@ -35,30 +35,36 @@ final class TeamListViewModel {
         isLoading = false
     }
 
-    func createTeam(_ team: Team) async {
+    func createTeam(_ team: Team) async -> Bool {
         do {
             try await repository.createTeam(team)
             await loadTeams()
+            return true
         } catch {
             errorMessage = error.localizedDescription
+            return false
         }
     }
 
-    func updateTeam(_ team: Team) async {
+    func updateTeam(_ team: Team) async -> Bool {
         do {
             try await repository.updateTeam(team)
             await loadTeams()
+            return true
         } catch {
             errorMessage = error.localizedDescription
+            return false
         }
     }
 
-    func deleteTeam(_ team: Team) async {
+    func deleteTeam(_ team: Team) async -> Bool {
         do {
             try await repository.deleteTeam(id: team.id)
             await loadTeams()
+            return true
         } catch {
             errorMessage = error.localizedDescription
+            return false
         }
     }
 }

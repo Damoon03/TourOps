@@ -15,7 +15,8 @@ struct TeamListViewModelTests {
 
         var teams: [Team] = []
         var error: Error?
-
+        var createError: Error?
+        
         func fetchTeams() async throws -> [Team] {
             if let error {
                 throw error
@@ -37,6 +38,10 @@ struct TeamListViewModelTests {
         }
 
         func createTeam(_ team: Team) async throws {
+            if let createError {
+                throw createError
+            }
+
             teams.append(team)
         }
 
@@ -106,5 +111,29 @@ struct TeamListViewModelTests {
         #expect(viewModel.errorMessage != nil)
         #expect(viewModel.teams.isEmpty)
         #expect(viewModel.isLoading == false)
+    }
+    
+    @Test
+    @MainActor
+    func createTeamFailsWithError() async {
+        let repository = TestTeamRepository()
+        repository.createError = RepositoryError.duplicate
+
+        let viewModel = TeamListViewModel(repository: repository)
+
+        let team = Team(
+            id: UUID(),
+            name: "Test Band",
+            genre: "Rock",
+            country: "UK",
+            city: "London",
+            createdAt: Date()
+        )
+
+        let success = await viewModel.createTeam(team)
+
+        #expect(success == false)
+        #expect(viewModel.errorMessage != nil)
+        #expect(repository.teams.isEmpty)
     }
 }

@@ -18,6 +18,7 @@ struct EditTeamView: View {
     @State private var genre: String
     @State private var country: String
     @State private var city: String
+    @State private var showingError = false
 
     init(
         team: Team,
@@ -62,11 +63,26 @@ struct EditTeamView: View {
                     )
 
                     Task {
-                        await viewModel.updateTeam(updatedTeam)
-                        dismiss()
+                        let success = await viewModel.updateTeam(updatedTeam)
+
+                        if success {
+                            dismiss()
+                        } else {
+                            showingError = true
+                        }
                     }
                 }
             }
+        }
+        .alert(
+            "Error",
+            isPresented: $showingError
+        ) {
+            Button("OK", role: .cancel) {
+                viewModel.errorMessage = nil
+            }
+        } message: {
+            Text(viewModel.errorMessage ?? "Something went wrong.")
         }
     }
 }

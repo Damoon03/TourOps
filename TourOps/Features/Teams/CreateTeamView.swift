@@ -17,6 +17,8 @@ struct CreateTeamView: View {
     @State private var genre = ""
     @State private var country = ""
     @State private var city = ""
+    
+    @State private var showingError = false
 
     var body: some View {
         NavigationStack {
@@ -49,13 +51,28 @@ struct CreateTeamView: View {
                         )
 
                         Task {
-                            await viewModel.createTeam(team)
-                            dismiss()
+                            let success = await viewModel.createTeam(team)
+
+                            if success {
+                                dismiss()
+                            } else {
+                                showingError = true
+                            }
                         }
                     }
                     .disabled(name.isEmpty)
                 }
             }
+        }
+        .alert(
+            "Error",
+            isPresented: $showingError
+        ) {
+            Button("OK", role: .cancel) {
+                viewModel.errorMessage = nil
+            }
+        } message: {
+            Text(viewModel.errorMessage ?? "Something went wrong.")
         }
     }
 }

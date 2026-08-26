@@ -16,6 +16,7 @@ struct TeamDetailView: View {
 
     @State private var showingEdit = false
     @State private var showingDeleteConfirmation = false
+    @State private var showingError = false
 
     private var team: Team? {
         viewModel.teams.first { $0.id == teamID }
@@ -79,16 +80,30 @@ struct TeamDetailView: View {
                 guard let team else { return }
 
                 Task {
-                    await viewModel.deleteTeam(team)
-                    dismiss()
+                    let success = await viewModel.deleteTeam(team)
+
+                    if success {
+                        dismiss()
+                    } else {
+                        showingError = true
+                    }
                 }
             }
 
             Button("Cancel", role: .cancel) {
-                // Nothing to do
             }
         } message: {
             Text("This action cannot be undone.")
+        }
+        .alert(
+            "Error",
+            isPresented: $showingError
+        ) {
+            Button("OK", role: .cancel) {
+                viewModel.errorMessage = nil
+            }
+        } message: {
+            Text(viewModel.errorMessage ?? "Something went wrong.")
         }
     }
 }
