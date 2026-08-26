@@ -34,7 +34,9 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				SwiftDataTeamRepositoryTests.swift,
+				SwiftDataTourRepositoryTests.swift,
 				TeamListViewModelTests.swift,
+				TourListViewModelTests.swift,
 				TourOpsTests.swift,
 			);
 			target = CE366DE43039C7FD00167ACB /* TourOpsTests */;

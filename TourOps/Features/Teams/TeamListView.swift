@@ -10,12 +10,17 @@ import SwiftUI
 struct TeamListView: View {
 
     let repository: TeamRepositoryProtocol
+    let tourRepository: TourRepositoryProtocol
 
     @State private var viewModel: TeamListViewModel
     @State private var showingCreateTeam = false
 
-    init(repository: TeamRepositoryProtocol) {
+    init(
+        repository: TeamRepositoryProtocol,
+        tourRepository: TourRepositoryProtocol
+    ) {
         self.repository = repository
+        self.tourRepository = tourRepository
 
         _viewModel = State(
             initialValue: TeamListViewModel(
@@ -28,7 +33,7 @@ struct TeamListView: View {
         NavigationStack {
             Group {
                 if viewModel.isLoading {
-                    ProgressView("Loading teams...")
+                    ProgressView()
                 } else if let errorMessage = viewModel.errorMessage {
                     ContentUnavailableView(
                         "Unable to Load Teams",
@@ -39,14 +44,17 @@ struct TeamListView: View {
                     ContentUnavailableView(
                         "No Teams",
                         systemImage: "person.3",
-                        description: Text("Create your first team to get started.")
+                        description: Text(
+                            "Create your first team to get started."
+                        )
                     )
                 } else {
                     List(viewModel.teams) { team in
                         NavigationLink {
                             TeamDetailView(
                                 teamID: team.id,
-                                viewModel: viewModel
+                                viewModel: viewModel,
+                                tourRepository: tourRepository
                             )
                         } label: {
                             VStack(alignment: .leading) {
@@ -78,8 +86,4 @@ struct TeamListView: View {
             }
         }
     }
-}
-
-#Preview {
-    Text("Team List Preview")
 }

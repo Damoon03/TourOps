@@ -11,6 +11,7 @@ struct TeamDetailView: View {
 
     let teamID: UUID
     let viewModel: TeamListViewModel
+    let tourRepository: TourRepositoryProtocol
 
     @Environment(\.dismiss) private var dismiss
 
@@ -37,6 +38,20 @@ struct TeamDetailView: View {
                         Text(team.createdAt, style: .date)
                     }
 
+                    Section("Tours") {
+                        NavigationLink {
+                            TourListView(
+                                repository: tourRepository,
+                                teamID: team.id
+                            )
+                        } label: {
+                            Label(
+                                "Tours",
+                                systemImage: "music.note.list"
+                            )
+                        }
+                    }
+
                     Section {
                         Button("Delete Team", role: .destructive) {
                             showingDeleteConfirmation = true
@@ -47,7 +62,9 @@ struct TeamDetailView: View {
                 ContentUnavailableView(
                     "Team Not Found",
                     systemImage: "person.3",
-                    description: Text("This team is no longer available.")
+                    description: Text(
+                        "This team is no longer available."
+                    )
                 )
             }
         }
@@ -103,7 +120,10 @@ struct TeamDetailView: View {
                 viewModel.dismissError()
             }
         } message: {
-            Text(viewModel.errorMessage ?? "Something went wrong.")
+            Text(
+                viewModel.errorMessage
+                ?? "Something went wrong."
+            )
         }
     }
 }

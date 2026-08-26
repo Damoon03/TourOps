@@ -13,11 +13,13 @@ struct TourOpsApp: App {
 
     private let modelContainer: ModelContainer
     private let teamRepository: SwiftDataTeamRepository
+    private let tourRepository: SwiftDataTourRepository
 
     init() {
         do {
             let schema = Schema([
-                TeamEntity.self
+                TeamEntity.self,
+                TourEntity.self
             ])
 
             let container = try ModelContainer(for: schema)
@@ -28,14 +30,22 @@ struct TourOpsApp: App {
                 modelContext: container.mainContext
             )
 
+            self.tourRepository = SwiftDataTourRepository(
+                modelContext: container.mainContext
+            )
         } catch {
-            fatalError("Failed to create ModelContainer: \(error)")
+            fatalError(
+                "Failed to create ModelContainer: \(error)"
+            )
         }
     }
 
     var body: some Scene {
         WindowGroup {
-            TeamListView(repository: teamRepository)
+            TeamListView(
+                repository: teamRepository,
+                tourRepository: tourRepository
+            )
         }
     }
 }
