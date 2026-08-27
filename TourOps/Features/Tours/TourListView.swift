@@ -9,85 +9,124 @@ import SwiftUI
 
 struct TourListView: View {
 
-    let repository: TourRepositoryProtocol
-    let teamID: UUID
+let repository: TourRepositoryProtocol
+let teamID: UUID
+let showRepository: ShowRepositoryProtocol
 
-    @State private var viewModel: TourListViewModel
-    @State private var showingCreateTour = false
+@State private var viewModel: TourListViewModel
+@State private var showingCreateTour = false
 
-    init(
-        repository: TourRepositoryProtocol,
-        teamID: UUID
-    ) {
-        self.repository = repository
-        self.teamID = teamID
+init(
+    repository: TourRepositoryProtocol,
+    teamID: UUID,
+    showRepository: ShowRepositoryProtocol
+) {
+    self.repository = repository
+    self.teamID = teamID
+    self.showRepository = showRepository
 
-        _viewModel = State(
-            initialValue: TourListViewModel(
-                repository: repository
-            )
+    _viewModel = State(
+        initialValue: TourListViewModel(
+            repository: repository
         )
-    }
+    )
+}
 
-    private var teamTours: [Tour] {
-        viewModel.tours.filter { $0.teamID == teamID }
-    }
+private var teamTours: [Tour] {
+    viewModel.tours.filter { $0.teamID == teamID }
+}
 
-    var body: some View {
-        Group {
-            if viewModel.isLoading {
-                ProgressView()
-            } else if let errorMessage = viewModel.errorMessage {
-                ContentUnavailableView(
-                    "Unable to Load Tours",
-                    systemImage: "exclamationmark.triangle",
-                    description: Text(errorMessage)
+var body: some View {
+
+    Group {
+
+        if viewModel.isLoading {
+
+            ProgressView()
+
+        } else if let errorMessage = viewModel.errorMessage {
+
+            ContentUnavailableView(
+                "Unable to Load Tours",
+                systemImage: "exclamationmark.triangle",
+                description: Text(errorMessage)
+            )
+
+        } else if teamTours.isEmpty {
+
+            ContentUnavailableView(
+                "No Tours",
+                systemImage: "music.note.list",
+                description: Text(
+                    "Create your first tour to get started."
                 )
-            } else if teamTours.isEmpty {
-                ContentUnavailableView(
-                    "No Tours",
-                    systemImage: "music.note.list",
-                    description: Text("Create your first tour to get started.")
-                )
-            } else {
-                List(teamTours) { tour in
-                    NavigationLink {
-                        TourDetailView(
-                            tourID: tour.id,
-                            viewModel: viewModel
+            )
+
+        } else {
+
+            List(teamTours) { tour in
+
+                NavigationLink {
+
+                    TourDetailView(
+                        tourID: tour.id,
+                        viewModel: viewModel,
+                        showRepository: showRepository
+                    )
+
+                } label: {
+
+                    VStack(
+                        alignment: .leading,
+                        spacing: 4
+                    ) {
+
+                        Text(tour.name)
+                            .font(.headline)
+
+                        Text(
+                            "\(tour.startDate.formatted(date: .abbreviated, time: .omitted)) – \(tour.endDate.formatted(date: .abbreviated, time: .omitted))"
                         )
-                    } label: {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(tour.name)
-                                .font(.headline)
-
-                            Text(
-                                "\(tour.startDate.formatted(date: .abbreviated, time: .omitted)) – \(tour.endDate.formatted(date: .abbreviated, time: .omitted))"
-                            )
-                            .font(.subheadline)
-                        }
+                        .font(.subheadline)
                     }
                 }
             }
         }
-        .navigationTitle("Tours")
-        .toolbar {
-            ToolbarItem(placement: .primaryAction) {
-                Button {
-                    showingCreateTour = true
-                } label: {
-                    Image(systemName: "plus")
-                }
+    }
+
+    .navigationTitle("Tours")
+
+    .toolbar {
+
+        ToolbarItem(
+            placement: .primaryAction
+        ) {
+
+            Button {
+
+                showingCreateTour = true
+
+            } label: {
+
+                Image(systemName: "plus")
             }
         }
-        .sheet(isPresented: $showingCreateTour) {
-            CreateTourView(
-                viewModel: viewModel,
-                teamID: teamID
-            )
-        }
-        .task {
-            await viewModel.loadTours()
-        }
     }
+
+    .sheet(
+        isPresented: $showingCreateTour
+    ) {
+
+        CreateTourView(
+            viewModel: viewModel,
+            teamID: teamID
+        )
+    }
+
+    .task {
+
+        await viewModel.loadTours()
+    }
+}
+
 }

@@ -11,16 +11,20 @@ struct TeamListView: View {
 
     let repository: TeamRepositoryProtocol
     let tourRepository: TourRepositoryProtocol
-
+    let showRepository: ShowRepositoryProtocol
+    
     @State private var viewModel: TeamListViewModel
     @State private var showingCreateTeam = false
 
     init(
         repository: TeamRepositoryProtocol,
-        tourRepository: TourRepositoryProtocol
+        tourRepository: TourRepositoryProtocol,
+        showRepository: ShowRepositoryProtocol
+        
     ) {
         self.repository = repository
         self.tourRepository = tourRepository
+        self.showRepository = showRepository
 
         _viewModel = State(
             initialValue: TeamListViewModel(
@@ -54,7 +58,8 @@ struct TeamListView: View {
                             TeamDetailView(
                                 teamID: team.id,
                                 viewModel: viewModel,
-                                tourRepository: tourRepository
+                                tourRepository: tourRepository,
+                                showRepository: showRepository
                             )
                         } label: {
                             VStack(alignment: .leading) {

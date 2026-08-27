@@ -1,140 +1,120 @@
 //
-//  TourDetailView.swift
+//  ShowDetailView.swift
 //  TourOps
 //
-//  Created by Damoon saber on 6/4/1405 AP.
+//  Created by Damoon saber on 6/5/1405 AP.
 //
 
 import SwiftUI
 
-struct TourDetailView: View {
+struct ShowDetailView: View {
 
-let tourID: UUID
-let viewModel: TourListViewModel
-let showRepository: ShowRepositoryProtocol
+let showID: UUID
+let viewModel: ShowListViewModel
 
 @Environment(\.dismiss) private var dismiss
 
-@State private var showingEditTour = false
+@State private var showingEditShow = false
 @State private var showingDeleteConfirmation = false
 @State private var showingError = false
 
-private var tour: Tour? {
-    viewModel.tours.first { $0.id == tourID }
+private var show: Show? {
+    viewModel.shows.first { $0.id == showID }
 }
 
 var body: some View {
-
     Group {
-
-        if let tour {
+        if let show {
 
             Form {
-
-                Section("Tour Information") {
-
+                Section("Show Information") {
                     LabeledContent(
                         "Name",
-                        value: tour.name
+                        value: show.name
                     )
 
                     LabeledContent(
-                        "Start Date",
-                        value: tour.startDate.formatted(
-                            date: .abbreviated,
-                            time: .omitted
-                        )
+                        "Venue",
+                        value: show.venue
                     )
 
                     LabeledContent(
-                        "End Date",
-                        value: tour.endDate.formatted(
+                        "City",
+                        value: show.city
+                    )
+
+                    LabeledContent(
+                        "Date",
+                        value: show.date.formatted(
                             date: .abbreviated,
-                            time: .omitted
+                            time: .shortened
                         )
                     )
                 }
 
-                Section("Shows") {
-
-                    NavigationLink {
-
-                        ShowListView(
-                            repository: showRepository,
-                            tourID: tour.id
-                        )
-
-                    } label: {
-
-                        Label(
-                            "Shows",
-                            systemImage: "music.mic"
-                        )
-                    }
+                Section("Created") {
+                    Text(
+                        show.createdAt,
+                        style: .date
+                    )
                 }
 
                 Section {
-
                     Button(
-                        "Delete Tour",
+                        "Delete Show",
                         role: .destructive
                     ) {
                         showingDeleteConfirmation = true
                     }
                 }
             }
-            .navigationTitle(tour.name)
+            .navigationTitle(show.name)
             .navigationBarTitleDisplayMode(.inline)
-
             .toolbar {
-
                 ToolbarItem(
                     placement: .primaryAction
                 ) {
                     Button("Edit") {
-                        showingEditTour = true
+                        showingEditShow = true
                     }
                 }
             }
-
             .sheet(
-                isPresented: $showingEditTour
+                isPresented: $showingEditShow
             ) {
-
-                EditTourView(
+                EditShowView(
                     viewModel: viewModel,
-                    tour: tour
+                    show: show
                 )
             }
 
         } else {
 
             ContentUnavailableView(
-                "Tour Not Found",
-                systemImage: "music.note.list"
+                "Show Not Found",
+                systemImage: "music.mic",
+                description: Text(
+                    "This show is no longer available."
+                )
             )
         }
     }
-
     .confirmationDialog(
-        "Delete Tour?",
+        "Delete Show?",
         isPresented: $showingDeleteConfirmation,
         titleVisibility: .visible
     ) {
-
         Button(
             "Delete",
             role: .destructive
         ) {
-
-            guard let tour else {
+            guard let show else {
                 return
             }
 
             Task {
-
                 let success =
-                    await viewModel.deleteTour(tour)
+                    await viewModel.deleteShow(show)
 
                 if success {
                     dismiss()
@@ -149,26 +129,20 @@ var body: some View {
             role: .cancel
         ) {
         }
-
     } message: {
-
         Text("This action cannot be undone.")
     }
-
     .alert(
         "Error",
         isPresented: $showingError
     ) {
-
         Button(
             "OK",
             role: .cancel
         ) {
             viewModel.dismissError()
         }
-
     } message: {
-
         Text(
             viewModel.errorMessage
             ?? "Something went wrong."

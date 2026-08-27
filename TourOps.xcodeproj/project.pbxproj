@@ -33,6 +33,8 @@
 		CE366E273039F77700167ACB /* Exceptions for "TourOpsTests" folder in "TourOpsTests" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
+				ShowListViewModelTests.swift,
+				SwiftDataShowRepositoryTests.swift,
 				SwiftDataTeamRepositoryTests.swift,
 				SwiftDataTourRepositoryTests.swift,
 				TeamListViewModelTests.swift,

@@ -5,24 +5,26 @@
 //  Created by Damoon saber on 6/4/1405 AP.
 //
 
+import Foundation
 import SwiftUI
 
 struct TeamDetailView: View {
-
+    
     let teamID: UUID
     let viewModel: TeamListViewModel
     let tourRepository: TourRepositoryProtocol
-
+    let showRepository: ShowRepositoryProtocol
+    
     @Environment(\.dismiss) private var dismiss
-
+    
     @State private var showingEdit = false
     @State private var showingDeleteConfirmation = false
     @State private var showingError = false
-
+    
     private var team: Team? {
         viewModel.teams.first { $0.id == teamID }
     }
-
+    
     var body: some View {
         Group {
             if let team {
@@ -33,16 +35,17 @@ struct TeamDetailView: View {
                         LabeledContent("Country", value: team.country)
                         LabeledContent("City", value: team.city)
                     }
-
+                    
                     Section("Created") {
                         Text(team.createdAt, style: .date)
                     }
-
+                    
                     Section("Tours") {
                         NavigationLink {
                             TourListView(
                                 repository: tourRepository,
-                                teamID: team.id
+                                teamID: team.id,
+                                showRepository: showRepository
                             )
                         } label: {
                             Label(
@@ -51,9 +54,12 @@ struct TeamDetailView: View {
                             )
                         }
                     }
-
+                    
                     Section {
-                        Button("Delete Team", role: .destructive) {
+                        Button(
+                            "Delete Team",
+                            role: .destructive
+                        ) {
                             showingDeleteConfirmation = true
                         }
                     }
@@ -93,12 +99,17 @@ struct TeamDetailView: View {
             isPresented: $showingDeleteConfirmation,
             titleVisibility: .visible
         ) {
-            Button("Delete", role: .destructive) {
-                guard let team else { return }
-
+            Button(
+                "Delete",
+                role: .destructive
+            ) {
+                guard let team else {
+                    return
+                }
+                
                 Task {
                     let success = await viewModel.deleteTeam(team)
-
+                    
                     if success {
                         dismiss()
                     } else {
@@ -106,8 +117,11 @@ struct TeamDetailView: View {
                     }
                 }
             }
-
-            Button("Cancel", role: .cancel) {
+            
+            Button(
+                "Cancel",
+                role: .cancel
+            ) {
             }
         } message: {
             Text("This action cannot be undone.")
@@ -116,7 +130,10 @@ struct TeamDetailView: View {
             "Error",
             isPresented: $showingError
         ) {
-            Button("OK", role: .cancel) {
+            Button(
+                "OK",
+                role: .cancel
+            ) {
                 viewModel.dismissError()
             }
         } message: {

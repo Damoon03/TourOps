@@ -11,41 +11,50 @@ import SwiftData
 @main
 struct TourOpsApp: App {
 
-    private let modelContainer: ModelContainer
-    private let teamRepository: SwiftDataTeamRepository
-    private let tourRepository: SwiftDataTourRepository
+private let modelContainer: ModelContainer
+private let teamRepository: SwiftDataTeamRepository
+private let tourRepository: SwiftDataTourRepository
+private let showRepository: SwiftDataShowRepository
 
-    init() {
-        do {
-            let schema = Schema([
-                TeamEntity.self,
-                TourEntity.self
-            ])
+init() {
+    do {
+        let schema = Schema([
+            TeamEntity.self,
+            TourEntity.self,
+            ShowEntity.self
+        ])
 
-            let container = try ModelContainer(for: schema)
+        let container = try ModelContainer(for: schema)
 
-            self.modelContainer = container
+        self.modelContainer = container
 
-            self.teamRepository = SwiftDataTeamRepository(
-                modelContext: container.mainContext
-            )
+        self.teamRepository = SwiftDataTeamRepository(
+            modelContext: container.mainContext
+        )
 
-            self.tourRepository = SwiftDataTourRepository(
-                modelContext: container.mainContext
-            )
-        } catch {
-            fatalError(
-                "Failed to create ModelContainer: \(error)"
-            )
-        }
+        self.tourRepository = SwiftDataTourRepository(
+            modelContext: container.mainContext
+        )
+
+        self.showRepository = SwiftDataShowRepository(
+            modelContext: container.mainContext
+        )
+
+    } catch {
+        fatalError(
+            "Failed to create ModelContainer: \(error)"
+        )
     }
+}
 
-    var body: some Scene {
-        WindowGroup {
-            TeamListView(
-                repository: teamRepository,
-                tourRepository: tourRepository
-            )
-        }
+var body: some Scene {
+    WindowGroup {
+        TeamListView(
+            repository: teamRepository,
+            tourRepository: tourRepository,
+            showRepository: showRepository
+        )
     }
+}
+
 }
