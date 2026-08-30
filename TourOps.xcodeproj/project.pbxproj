@@ -33,13 +33,16 @@
 		CE366E273039F77700167ACB /* Exceptions for "TourOpsTests" folder in "TourOpsTests" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
-				ShowListViewModelTests.swift,
-				SwiftDataShowRepositoryTests.swift,
-				SwiftDataTeamRepositoryTests.swift,
-				SwiftDataTourRepositoryTests.swift,
-				TeamListViewModelTests.swift,
-				TourListViewModelTests.swift,
-				TourOpsTests.swift,
+				Repositories/MockTeamRepositoryTests.swift,
+				Repositories/SwiftDataShowRepositoryTests.swift,
+				Repositories/SwiftDataSyncOperationRepositoryTests.swift,
+				Repositories/SwiftDataTeamRepositoryTests.swift,
+				Repositories/SwiftDataTourRepositoryTests.swift,
+				Sync/SyncTrackingTeamRepositoryTests.swift,
+				Sync/SyncTrackingTourRepositoryTests.swift,
+				ViewModels/ShowListViewModelTests.swift,
+				ViewModels/TeamListViewModelTests.swift,
+				ViewModels/TourListViewModelTests.swift,
 			);
 			target = CE366DE43039C7FD00167ACB /* TourOpsTests */;
 		};

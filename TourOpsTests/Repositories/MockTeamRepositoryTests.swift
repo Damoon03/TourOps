@@ -1,13 +1,13 @@
 //
-//  TourOpsTests.swift
+//  MockTeamRepositoryTests.swift
 //  TourOpsTests
 //
 //  Created by Damoon saber on 5/31/1405 AP.
 //
 
+import Foundation
 import Testing
 @testable import TourOps
-import Foundation
 
 struct TourOpsTests {
 

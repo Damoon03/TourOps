@@ -1,0 +1,37 @@
+//
+//  SyncOperation.swift
+//  TourOps
+//
+//  Created by Damoon saber on 6/7/1405 AP.
+//
+
+import Foundation
+
+enum SyncEntityType: String, Codable {
+    case team
+    case tour
+    case show
+}
+
+enum SyncOperationType: String, Codable {
+    case create
+    case update
+    case delete
+}
+
+enum SyncOperationStatus: String, Codable {
+    case pending
+    case processing
+    case failed
+}
+
+struct SyncOperation: Identifiable, Equatable {
+    let id: UUID
+    let entityID: UUID
+    let entityType: SyncEntityType
+    let operationType: SyncOperationType
+    let createdAt: Date
+
+    var status: SyncOperationStatus
+    var retryCount: Int
+}
