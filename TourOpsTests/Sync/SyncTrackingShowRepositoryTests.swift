@@ -1,8 +1,8 @@
 //
 //  SyncTrackingShowRepositoryTests.swift
-//  TourOps
+//  TourOpsTests
 //
-//  Created by Damoon saber on 9/6/1405 AP.
+//  Created by Damoon saber on 9/9/1405 AP.
 //
 
 import Foundation
@@ -13,158 +13,215 @@ import SwiftData
 @MainActor
 struct SyncTrackingShowRepositoryTests {
 
-// MARK: - Create
+    // MARK: - Create
 
-@Test
-func createShowPersistsShowAndSyncOperation() async throws {
-    let (repository, syncOperationRepository) = try makeRepository()
+    @Test
+    func createShowPersistsShowAndSyncOperation() async throws {
+        let (repository, context) = try makeRepository()
+        let show = makeShow()
 
-    let show = makeShow()
+        try await repository.createShow(show)
 
-    try await repository.createShow(show)
+        let showDescriptor = FetchDescriptor<ShowEntity>()
+        let operationDescriptor = FetchDescriptor<SyncOperationEntity>()
 
-    let persistedShow = try await repository.fetchShow(id: show.id)
-    let operations = try await syncOperationRepository.fetchPendingOperations()
+        let shows = try context.fetch(showDescriptor)
+        let operations = try context.fetch(operationDescriptor)
 
-    #expect(persistedShow == show)
-    #expect(operations.count == 1)
+        #expect(shows.count == 1)
+        #expect(shows.first?.id == show.id)
 
-    let operation = try #require(operations.first)
-
-    #expect(operation.entityID == show.id)
-    #expect(operation.entityType == .show)
-    #expect(operation.operationType == .create)
-    #expect(operation.status == .pending)
-    #expect(operation.retryCount == 0)
-}
-
-// MARK: - Update
-
-@Test
-func updateShowPersistsShowAndCreatesSyncOperation() async throws {
-    let (repository, syncOperationRepository) = try makeRepository()
-
-    let show = makeShow()
-
-    try await repository.createShow(show)
-
-    let updatedShow = Show(
-        id: show.id,
-        tourID: show.tourID,
-        name: "Updated Show",
-        venue: show.venue,
-        city: show.city,
-        date: show.date,
-        createdAt: show.createdAt
-    )
-
-    try await repository.updateShow(updatedShow)
-
-    let persistedShow = try await repository.fetchShow(id: show.id)
-    let operations = try await syncOperationRepository.fetchPendingOperations()
-
-    #expect(persistedShow == updatedShow)
-    #expect(operations.count == 2)
-
-    let updateOperations = operations.filter {
-        $0.operationType == .update
+        #expect(operations.count == 1)
+        #expect(operations.first?.entityID == show.id)
+        #expect(operations.first?.entityType == SyncEntityType.show.rawValue)
+        #expect(
+            operations.first?.operationType ==
+            SyncOperationType.create.rawValue
+        )
+        #expect(
+            operations.first?.status ==
+            SyncOperationStatus.pending.rawValue
+        )
     }
 
-    #expect(updateOperations.count == 1)
+    @Test
+    func createShowThrowsDuplicateForExistingShow() async throws {
+        let (repository, context) = try makeRepository()
+        let show = makeShow()
 
-    let operation = try #require(updateOperations.first)
+        try await repository.createShow(show)
 
-    #expect(operation.entityID == show.id)
-    #expect(operation.entityType == .show)
-    #expect(operation.status == .pending)
-    #expect(operation.retryCount == 0)
-}
+        await #expect(throws: RepositoryError.duplicate) {
+            try await repository.createShow(show)
+        }
 
-// MARK: - Delete
+        let showDescriptor = FetchDescriptor<ShowEntity>()
+        let operationDescriptor = FetchDescriptor<SyncOperationEntity>()
 
-@Test
-func deleteShowDeletesShowAndCreatesSyncOperation() async throws {
-    let (repository, syncOperationRepository) = try makeRepository()
+        let shows = try context.fetch(showDescriptor)
+        let operations = try context.fetch(operationDescriptor)
 
-    let show = makeShow()
-
-    try await repository.createShow(show)
-
-    try await repository.deleteShow(id: show.id)
-
-    await #expect(throws: RepositoryError.notFound) {
-        try await repository.fetchShow(id: show.id)
+        #expect(shows.count == 1)
+        #expect(operations.count == 1)
     }
 
-    let operations = try await syncOperationRepository.fetchPendingOperations()
+    // MARK: - Update
 
-    #expect(operations.count == 2)
+    @Test
+    func updateShowPersistsShowChangesAndSyncOperation() async throws {
+        let (repository, context) = try makeRepository()
+        let show = makeShow()
 
-    let deleteOperations = operations.filter {
-        $0.operationType == .delete
+        try await repository.createShow(show)
+
+        let updatedShow = Show(
+            id: show.id,
+            tourID: show.tourID,
+            name: "Updated Show",
+            venue: "Updated Venue",
+            city: "Los Angeles",
+            date: show.date,
+            createdAt: show.createdAt
+        )
+
+        try await repository.updateShow(updatedShow)
+
+        let showDescriptor = FetchDescriptor<ShowEntity>()
+        let operationDescriptor = FetchDescriptor<SyncOperationEntity>()
+
+        let shows = try context.fetch(showDescriptor)
+        let operations = try context.fetch(operationDescriptor)
+
+        #expect(shows.count == 1)
+        #expect(shows.first?.name == "Updated Show")
+        #expect(shows.first?.venue == "Updated Venue")
+        #expect(shows.first?.city == "Los Angeles")
+
+        #expect(operations.count == 2)
+
+        let updateOperation = operations.first {
+            $0.operationType == SyncOperationType.update.rawValue
+        }
+
+        #expect(updateOperation?.entityID == show.id)
+        #expect(updateOperation?.entityType == SyncEntityType.show.rawValue)
+        #expect(
+            updateOperation?.status ==
+            SyncOperationStatus.pending.rawValue
+        )
     }
 
-    #expect(deleteOperations.count == 1)
+    @Test
+    func updateShowThrowsNotFoundForMissingShow() async throws {
+        let (repository, context) = try makeRepository()
+        let show = makeShow()
 
-    let operation = try #require(deleteOperations.first)
+        await #expect(throws: RepositoryError.notFound) {
+            try await repository.updateShow(show)
+        }
 
-    #expect(operation.entityID == show.id)
-    #expect(operation.entityType == .show)
-    #expect(operation.status == .pending)
-    #expect(operation.retryCount == 0)
-}
+        let operationDescriptor = FetchDescriptor<SyncOperationEntity>()
+        let operations = try context.fetch(operationDescriptor)
 
-// MARK: - Helpers
+        #expect(operations.isEmpty)
+    }
 
-private func makeRepository() throws -> (
-    repository: SyncTrackingShowRepository,
-    syncOperationRepository: SwiftDataSyncOperationRepository
-) {
-    let schema = Schema([
-        ShowEntity.self,
-        SyncOperationEntity.self
-    ])
+    // MARK: - Delete
 
-    let configuration = ModelConfiguration(
-        isStoredInMemoryOnly: true
-    )
+    @Test
+    func deleteShowRemovesShowAndCreatesSyncOperation() async throws {
+        let (repository, context) = try makeRepository()
+        let show = makeShow()
 
-    let container = try ModelContainer(
-        for: schema,
-        configurations: configuration
-    )
+        try await repository.createShow(show)
 
-    let modelContext = ModelContext(container)
+        try await repository.deleteShow(id: show.id)
 
-    let showRepository = SwiftDataShowRepository(
-        modelContext: modelContext
-    )
+        let showDescriptor = FetchDescriptor<ShowEntity>()
+        let operationDescriptor = FetchDescriptor<SyncOperationEntity>()
 
-    let syncOperationRepository = SwiftDataSyncOperationRepository(
-        modelContext: modelContext
-    )
+        let shows = try context.fetch(showDescriptor)
+        let operations = try context.fetch(operationDescriptor)
 
-    let repository = SyncTrackingShowRepository(
-        showRepository: showRepository,
-        syncOperationRepository: syncOperationRepository,
-        modelContext: modelContext
-    )
+        #expect(shows.isEmpty)
+        #expect(operations.count == 2)
 
-    return (
-        repository,
-        syncOperationRepository
-    )
-}
+        let deleteOperation = operations.first {
+            $0.operationType == SyncOperationType.delete.rawValue
+        }
 
-private func makeShow() -> Show {
-    Show(
-        id: UUID(),
-        tourID: UUID(),
-        name: "Test Show",
-        venue: "Test Venue",
-        city: "Baku",
-        date: Date(timeIntervalSince1970: 1_000),
-        createdAt: Date(timeIntervalSince1970: 900)
-    )
-}
+        #expect(deleteOperation?.entityID == show.id)
+        #expect(deleteOperation?.entityType == SyncEntityType.show.rawValue)
+        #expect(
+            deleteOperation?.status ==
+            SyncOperationStatus.pending.rawValue
+        )
+    }
+
+    @Test
+    func deleteShowThrowsNotFoundForMissingShow() async throws {
+        let (repository, context) = try makeRepository()
+        let showID = UUID()
+
+        await #expect(throws: RepositoryError.notFound) {
+            try await repository.deleteShow(id: showID)
+        }
+
+        let operationDescriptor = FetchDescriptor<SyncOperationEntity>()
+        let operations = try context.fetch(operationDescriptor)
+
+        #expect(operations.isEmpty)
+    }
+
+    // MARK: - Helpers
+
+    private func makeRepository() throws -> (
+        repository: SyncTrackingShowRepository,
+        context: ModelContext
+    ) {
+        let schema = Schema([
+            ShowEntity.self,
+            SyncOperationEntity.self
+        ])
+
+        let configuration = ModelConfiguration(
+            isStoredInMemoryOnly: true
+        )
+
+        let container = try ModelContainer(
+            for: schema,
+            configurations: configuration
+        )
+
+        let context = ModelContext(container)
+
+        let showRepository = SwiftDataShowRepository(
+            modelContext: context
+        )
+
+        let syncOperationRepository = SwiftDataSyncOperationRepository(
+            modelContext: context
+        )
+
+        let repository = SyncTrackingShowRepository(
+            showRepository: showRepository,
+            syncOperationRepository: syncOperationRepository,
+            modelContext: context
+        )
+
+        return (repository, context)
+    }
+
+    private func makeShow() -> Show {
+        Show(
+            id: UUID(),
+            tourID: UUID(),
+            name: "Northbound",
+            venue: "The Wiltern",
+            city: "Los Angeles",
+            date: Date(timeIntervalSince1970: 1_000),
+            createdAt: Date(timeIntervalSince1970: 500)
+        
+        )
+    }
 }
