@@ -2,7 +2,7 @@
 //  SyncEngineTests.swift
 //  TourOpsTests
 //
-//  Created by Damoon saber on 9/8/1405 AP.
+//  Created by Damoon saber on 10/6/1405 AP.
 //
 
 import Foundation
@@ -12,76 +12,93 @@ import Testing
 @MainActor
 struct SyncEngineTests {
 
+    // MARK: - Success
+
     @Test
-    func syncExecutesPendingOperations() async throws {
+    func syncSuccessfullyExecutesAndDeletesOperation() async throws {
+        let repository = MockSyncOperationRepository()
+        let service = MockSyncService()
+
         let operation = makeOperation()
-        let operationRepository = MockSyncOperationRepository(
-            pendingOperations: [operation]
-        )
-        let syncService = MockSyncService()
+        repository.operations = [operation]
 
         let engine = SyncEngine(
-            syncOperationRepository: operationRepository,
-            syncService: syncService
+            syncOperationRepository: repository,
+            syncService: service
         )
 
         await engine.sync()
 
-        #expect(syncService.executedOperations == [operation])
+        #expect(service.executedOperations.count == 1)
+        #expect(service.executedOperations.first?.id == operation.id)
+
+        #expect(repository.updatedOperations.count == 1)
+        #expect(
+            repository.updatedOperations.first?.status == .processing
+        )
+
+        #expect(repository.deletedOperations.count == 1)
+        #expect(repository.deletedOperations.first?.id == operation.id)
     }
 
+    // MARK: - Failure
+
     @Test
-    func syncDeletesOperationAfterSuccessfulExecution() async throws {
+    func syncMarksOperationAsFailedWhenExecutionFails() async throws {
+        let repository = MockSyncOperationRepository()
+        let service = MockSyncService()
+        service.error = TestError.executionFailed
+
         let operation = makeOperation()
-        let operationRepository = MockSyncOperationRepository(
-            pendingOperations: [operation]
-        )
-        let syncService = MockSyncService()
+        repository.operations = [operation]
 
         let engine = SyncEngine(
-            syncOperationRepository: operationRepository,
-            syncService: syncService
+            syncOperationRepository: repository,
+            syncService: service
         )
 
         await engine.sync()
 
-        #expect(operationRepository.deletedOperations == [operation])
+        #expect(service.executedOperations.count == 1)
+
+        #expect(repository.updatedOperations.count == 2)
+        #expect(
+            repository.updatedOperations[0].status == .processing
+        )
+        #expect(
+            repository.updatedOperations[1].status == .failed
+        )
+
+        #expect(repository.deletedOperations.isEmpty)
     }
 
+    // MARK: - Multiple Operations
+
     @Test
-    func syncDoesNotDeleteOperationWhenExecutionFails() async throws {
-        let operation = makeOperation()
-        let operationRepository = MockSyncOperationRepository(
-            pendingOperations: [operation]
-        )
-        let syncService = MockSyncService(
-            shouldFail: true
-        )
+    func syncProcessesAllPendingOperations() async throws {
+        let repository = MockSyncOperationRepository()
+        let service = MockSyncService()
+
+        let first = makeOperation()
+        let second = makeOperation()
+        let third = makeOperation()
+
+        repository.operations = [
+            first,
+            second,
+            third
+        ]
 
         let engine = SyncEngine(
-            syncOperationRepository: operationRepository,
-            syncService: syncService
+            syncOperationRepository: repository,
+            syncService: service
         )
 
         await engine.sync()
 
-        #expect(operationRepository.deletedOperations.isEmpty)
-    }
-
-    @Test
-    func syncDoesNothingWhenThereAreNoPendingOperations() async throws {
-        let operationRepository = MockSyncOperationRepository()
-        let syncService = MockSyncService()
-
-        let engine = SyncEngine(
-            syncOperationRepository: operationRepository,
-            syncService: syncService
-        )
-
-        await engine.sync()
-
-        #expect(syncService.executedOperations.isEmpty)
-        #expect(operationRepository.deletedOperations.isEmpty)
+        #expect(service.executedOperations.count == 3)
+        #expect(repository.deletedOperations.count == 3)
+        #expect(repository.updatedOperations.count == 3)
     }
 
     // MARK: - Helpers
@@ -99,68 +116,52 @@ struct SyncEngineTests {
     }
 }
 
-// MARK: - Mocks
+// MARK: - Mock Sync Operation Repository
 
 @MainActor
 private final class MockSyncOperationRepository:
     SyncOperationRepositoryProtocol {
 
-    private(set) var pendingOperations: [SyncOperation]
-    private(set) var deletedOperations: [SyncOperation] = []
+    var operations: [SyncOperation] = []
+    var updatedOperations: [SyncOperation] = []
+    var deletedOperations: [SyncOperation] = []
 
-    init(
-        pendingOperations: [SyncOperation] = []
-    ) {
-        self.pendingOperations = pendingOperations
+    func fetchPendingOperations() async throws -> [SyncOperation] {
+        operations
     }
 
     func add(_ operation: SyncOperation) async throws {
-        pendingOperations.append(operation)
-    }
-
-    func fetchPendingOperations() async throws -> [SyncOperation] {
-        pendingOperations
+        operations.append(operation)
     }
 
     func update(_ operation: SyncOperation) async throws {
-        if let index = pendingOperations.firstIndex(
-            where: { $0.id == operation.id }
-        ) {
-            pendingOperations[index] = operation
-        }
+        updatedOperations.append(operation)
     }
 
     func delete(_ operation: SyncOperation) async throws {
         deletedOperations.append(operation)
-
-        pendingOperations.removeAll {
-            $0.id == operation.id
-        }
     }
 }
 
+// MARK: - Mock Sync Service
+
+@MainActor
 private final class MockSyncService: SyncServiceProtocol {
 
-    private(set) var executedOperations: [SyncOperation] = []
+    var executedOperations: [SyncOperation] = []
+    var error: Error?
 
-    let shouldFail: Bool
-
-    init(shouldFail: Bool = false) {
-        self.shouldFail = shouldFail
-    }
-
-    func execute(
-        _ operation: SyncOperation
-    ) async throws {
-
-        if shouldFail {
-            throw MockSyncServiceError.executionFailed
-        }
-
+    func execute(_ operation: SyncOperation) async throws {
         executedOperations.append(operation)
+
+        if let error {
+            throw error
+        }
     }
 }
 
-private enum MockSyncServiceError: Error {
+// MARK: - Test Error
+
+private enum TestError: Error {
     case executionFailed
 }

@@ -27,13 +27,32 @@ final class SyncEngine: SyncEngineProtocol {
                 try await syncOperationRepository.fetchPendingOperations()
 
             for operation in operations {
+                var processingOperation = operation
+                processingOperation.status = .processing
+
                 do {
-                    try await syncService.execute(operation)
-                    try await syncOperationRepository.delete(operation)
+                    try await syncOperationRepository.update(
+                        processingOperation
+                    )
+
+                    try await syncService.execute(
+                        processingOperation
+                    )
+
+                    try await syncOperationRepository.delete(
+                        processingOperation
+                    )
+
                 } catch {
-                    continue
+                    var failedOperation = processingOperation
+                    failedOperation.status = .failed
+
+                    try? await syncOperationRepository.update(
+                        failedOperation
+                    )
                 }
             }
+
         } catch {
             return
         }
