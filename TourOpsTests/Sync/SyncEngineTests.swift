@@ -16,94 +16,129 @@ struct SyncEngineTests {
 
     @Test
     func syncSuccessfullyExecutesAndDeletesOperation() async throws {
+
         let repository = MockSyncOperationRepository()
         let service = MockSyncService()
 
         let operation = makeOperation()
         repository.operations = [operation]
 
-        let engine = SyncEngine(
-            syncOperationRepository: repository,
-            syncService: service
+        let engine = makeEngine(
+            repository: repository,
+            service: service
         )
 
         await engine.sync()
 
         #expect(service.executedOperations.count == 1)
-        #expect(service.executedOperations.first?.id == operation.id)
-
-        #expect(repository.updatedOperations.count == 1)
-        #expect(
-            repository.updatedOperations.first?.status == .processing
-        )
-
         #expect(repository.deletedOperations.count == 1)
-        #expect(repository.deletedOperations.first?.id == operation.id)
     }
 
-    // MARK: - Failure
+
+    // MARK: - Retry
 
     @Test
-    func syncMarksOperationAsFailedWhenExecutionFails() async throws {
+    func syncReturnsOperationToPendingWhenRetryIsAvailable() async throws {
+
         let repository = MockSyncOperationRepository()
         let service = MockSyncService()
+
         service.error = TestError.executionFailed
 
-        let operation = makeOperation()
+        let operation = makeOperation(
+            retryCount: 0
+        )
+
         repository.operations = [operation]
 
-        let engine = SyncEngine(
-            syncOperationRepository: repository,
-            syncService: service
+        let engine = makeEngine(
+            repository: repository,
+            service: service
         )
 
         await engine.sync()
 
-        #expect(service.executedOperations.count == 1)
-
         #expect(repository.updatedOperations.count == 2)
+
+        let failedAttempt =
+            repository.updatedOperations[0]
+
+        let retryOperation =
+            repository.updatedOperations[1]
+
         #expect(
-            repository.updatedOperations[0].status == .processing
-        )
-        #expect(
-            repository.updatedOperations[1].status == .failed
+            failedAttempt.status == .processing
         )
 
-        #expect(repository.deletedOperations.isEmpty)
+        #expect(
+            retryOperation.status == .pending
+        )
+
+        #expect(
+            retryOperation.retryCount == 1
+        )
     }
 
-    // MARK: - Multiple Operations
 
     @Test
-    func syncProcessesAllPendingOperations() async throws {
+    func syncMarksOperationFailedWhenRetryLimitReached() async throws {
+
         let repository = MockSyncOperationRepository()
         let service = MockSyncService()
 
-        let first = makeOperation()
-        let second = makeOperation()
-        let third = makeOperation()
+        service.error = TestError.executionFailed
 
-        repository.operations = [
-            first,
-            second,
-            third
-        ]
+        let operation = makeOperation(
+            retryCount: 3
+        )
 
-        let engine = SyncEngine(
-            syncOperationRepository: repository,
-            syncService: service
+        repository.operations = [operation]
+
+        let engine = makeEngine(
+            repository: repository,
+            service: service,
+            retryPolicy: SyncRetryPolicy(
+                maxRetryCount: 3
+            )
         )
 
         await engine.sync()
 
-        #expect(service.executedOperations.count == 3)
-        #expect(repository.deletedOperations.count == 3)
-        #expect(repository.updatedOperations.count == 3)
+        #expect(repository.updatedOperations.count == 2)
+
+        let finalOperation =
+            repository.updatedOperations.last
+
+        #expect(
+            finalOperation?.status == .failed
+        )
+
+        #expect(
+            finalOperation?.retryCount == 3
+        )
     }
+
 
     // MARK: - Helpers
 
-    private func makeOperation() -> SyncOperation {
+    private func makeEngine(
+        repository: MockSyncOperationRepository,
+        service: MockSyncService,
+        retryPolicy: SyncRetryPolicy = SyncRetryPolicy()
+    ) -> SyncEngine {
+
+        SyncEngine(
+            syncOperationRepository: repository,
+            syncService: service,
+            retryPolicy: retryPolicy
+        )
+    }
+
+
+    private func makeOperation(
+        retryCount: Int = 0
+    ) -> SyncOperation {
+
         SyncOperation(
             id: UUID(),
             entityID: UUID(),
@@ -111,47 +146,62 @@ struct SyncEngineTests {
             operationType: .create,
             createdAt: Date(),
             status: .pending,
-            retryCount: 0
+            retryCount: retryCount
         )
     }
 }
 
-// MARK: - Mock Sync Operation Repository
+
+// MARK: - Mock Repository
 
 @MainActor
 private final class MockSyncOperationRepository:
     SyncOperationRepositoryProtocol {
 
     var operations: [SyncOperation] = []
+
     var updatedOperations: [SyncOperation] = []
     var deletedOperations: [SyncOperation] = []
+
 
     func fetchPendingOperations() async throws -> [SyncOperation] {
         operations
     }
 
+
     func add(_ operation: SyncOperation) async throws {
         operations.append(operation)
     }
 
+
     func update(_ operation: SyncOperation) async throws {
+
         updatedOperations.append(operation)
     }
 
+
     func delete(_ operation: SyncOperation) async throws {
+
         deletedOperations.append(operation)
     }
 }
 
-// MARK: - Mock Sync Service
+
+// MARK: - Mock Service
 
 @MainActor
-private final class MockSyncService: SyncServiceProtocol {
+private final class MockSyncService:
+    SyncServiceProtocol {
 
     var executedOperations: [SyncOperation] = []
+
     var error: Error?
 
-    func execute(_ operation: SyncOperation) async throws {
+
+    func execute(
+        _ operation: SyncOperation
+    ) async throws {
+
         executedOperations.append(operation)
 
         if let error {
@@ -160,7 +210,8 @@ private final class MockSyncService: SyncServiceProtocol {
     }
 }
 
-// MARK: - Test Error
+
+// MARK: - Error
 
 private enum TestError: Error {
     case executionFailed

@@ -40,6 +40,7 @@
 				Repositories/SwiftDataTeamRepositoryTests.swift,
 				Repositories/SwiftDataTourRepositoryTests.swift,
 				Sync/SyncEngineTests.swift,
+				Sync/SyncRetryPolicyTests.swift,
 				Sync/SyncTrackingShowRepositoryTests.swift,
 				Sync/SyncTrackingTeamRepositoryTests.swift,
 				Sync/SyncTrackingTourRepositoryTests.swift,
