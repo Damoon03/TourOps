@@ -21,6 +21,7 @@ struct SyncEngineTests {
         let service = MockSyncService()
 
         let operation = makeOperation()
+
         repository.operations = [operation]
 
         let engine = makeEngine(
@@ -60,14 +61,14 @@ struct SyncEngineTests {
 
         #expect(repository.updatedOperations.count == 2)
 
-        let failedAttempt =
+        let processingOperation =
             repository.updatedOperations[0]
 
         let retryOperation =
             repository.updatedOperations[1]
 
         #expect(
-            failedAttempt.status == .processing
+            processingOperation.status == .processing
         )
 
         #expect(
@@ -114,7 +115,60 @@ struct SyncEngineTests {
         )
 
         #expect(
-            finalOperation?.retryCount == 3
+            finalOperation?.retryCount == 4
+        )
+    }
+
+
+    // MARK: - Reducer Integration
+
+    @Test
+    func syncReducesOperationsBeforeExecution() async throws {
+
+        let entityID = UUID()
+
+        let create = SyncOperation(
+            id: UUID(),
+            entityID: entityID,
+            entityType: .show,
+            operationType: .create,
+            createdAt: Date(timeIntervalSince1970: 100),
+            status: .pending,
+            retryCount: 0
+        )
+
+        let update = SyncOperation(
+            id: UUID(),
+            entityID: entityID,
+            entityType: .show,
+            operationType: .update,
+            createdAt: Date(timeIntervalSince1970: 200),
+            status: .pending,
+            retryCount: 0
+        )
+
+
+        let (
+            engine,
+            _,
+            service
+        ) = try makeEngine(
+            operations: [
+                create,
+                update
+            ]
+        )
+
+
+        await engine.sync()
+
+
+        #expect(
+            service.executedOperations.count == 1
+        )
+
+        #expect(
+            service.executedOperations.first?.operationType == .create
         )
     }
 
@@ -124,13 +178,43 @@ struct SyncEngineTests {
     private func makeEngine(
         repository: MockSyncOperationRepository,
         service: MockSyncService,
-        retryPolicy: SyncRetryPolicy = SyncRetryPolicy()
+        retryPolicy: SyncRetryPolicy = SyncRetryPolicy(
+            maxRetryCount: 3
+        )
     ) -> SyncEngine {
 
         SyncEngine(
             syncOperationRepository: repository,
             syncService: service,
-            retryPolicy: retryPolicy
+            retryPolicy: retryPolicy,
+            operationReducer: SyncOperationReducer()
+        )
+    }
+
+
+    private func makeEngine(
+        operations: [SyncOperation]
+    ) throws -> (
+        engine: SyncEngine,
+        repository: MockSyncOperationRepository,
+        service: MockSyncService
+    ) {
+
+        let repository = MockSyncOperationRepository(
+            operations: operations
+        )
+
+        let service = MockSyncService()
+
+        let engine = makeEngine(
+            repository: repository,
+            service: service
+        )
+
+        return (
+            engine,
+            repository,
+            service
         )
     }
 
@@ -158,29 +242,45 @@ struct SyncEngineTests {
 private final class MockSyncOperationRepository:
     SyncOperationRepositoryProtocol {
 
-    var operations: [SyncOperation] = []
+    var operations: [SyncOperation]
 
     var updatedOperations: [SyncOperation] = []
     var deletedOperations: [SyncOperation] = []
 
 
-    func fetchPendingOperations() async throws -> [SyncOperation] {
+    init(
+        operations: [SyncOperation] = []
+    ) {
+        self.operations = operations
+    }
+
+
+    func fetchPendingOperations()
+    async throws -> [SyncOperation] {
+
         operations
     }
 
 
-    func add(_ operation: SyncOperation) async throws {
+    func add(
+        _ operation: SyncOperation
+    ) async throws {
+
         operations.append(operation)
     }
 
 
-    func update(_ operation: SyncOperation) async throws {
+    func update(
+        _ operation: SyncOperation
+    ) async throws {
 
         updatedOperations.append(operation)
     }
 
 
-    func delete(_ operation: SyncOperation) async throws {
+    func delete(
+        _ operation: SyncOperation
+    ) async throws {
 
         deletedOperations.append(operation)
     }

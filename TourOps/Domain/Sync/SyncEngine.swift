@@ -13,73 +13,97 @@ final class SyncEngine: SyncEngineProtocol {
     private let syncOperationRepository: SyncOperationRepositoryProtocol
     private let syncService: SyncServiceProtocol
     private let retryPolicy: SyncRetryPolicy
+    private let operationReducer: SyncOperationReducer
 
     init(
         syncOperationRepository: SyncOperationRepositoryProtocol,
         syncService: SyncServiceProtocol,
-        retryPolicy: SyncRetryPolicy
+        retryPolicy: SyncRetryPolicy,
+        operationReducer: SyncOperationReducer
     ) {
         self.syncOperationRepository = syncOperationRepository
         self.syncService = syncService
         self.retryPolicy = retryPolicy
+        self.operationReducer = operationReducer
     }
+
 
     func sync() async {
 
         do {
+
+            let pendingOperations =
+                try await syncOperationRepository.fetchPendingOperations()
+
             let operations =
-                try await syncOperationRepository
-                    .fetchPendingOperations()
+                operationReducer.reduce(
+                    pendingOperations
+                )
 
             for operation in operations {
 
-                var processingOperation = operation
-                processingOperation.status = .processing
-
-                do {
-                    try await syncOperationRepository
-                        .update(processingOperation)
-
-                    try await syncService
-                        .execute(processingOperation)
-
-                    try await syncOperationRepository
-                        .delete(processingOperation)
-
-                } catch {
-
-                    await handleFailure(
-                        processingOperation
-                    )
-                }
+                await process(operation)
             }
 
         } catch {
+
             return
         }
     }
+
+
+    private func process(
+        _ operation: SyncOperation
+    ) async {
+
+        do {
+
+            var processingOperation = operation
+            processingOperation.status = .processing
+
+            try await syncOperationRepository.update(
+                processingOperation
+            )
+
+            try await syncService.execute(
+                processingOperation
+            )
+
+            try await syncOperationRepository.delete(
+                processingOperation
+            )
+
+        } catch {
+
+            await handleFailure(
+                operation
+            )
+        }
+    }
+
 
     private func handleFailure(
         _ operation: SyncOperation
     ) async {
 
-        var updatedOperation = operation
+        var failedOperation = operation
 
-        if retryPolicy.shouldRetry(operation) {
+        failedOperation.retryCount += 1
 
-            updatedOperation.retryCount =
-                retryPolicy.nextRetryCount(
-                    for: operation
-                )
+        if retryPolicy.shouldRetry(
+            failedOperation
+        ) {
 
-            updatedOperation.status = .pending
+            failedOperation.status = .pending
 
         } else {
 
-            updatedOperation.status = .failed
+            failedOperation.status = .failed
         }
 
-        try? await syncOperationRepository
-            .update(updatedOperation)
+
+        try? await syncOperationRepository.update(
+            failedOperation
+        )
     }
 }

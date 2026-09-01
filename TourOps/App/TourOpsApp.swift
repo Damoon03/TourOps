@@ -11,81 +11,123 @@ import SwiftData
 @main
 struct TourOpsApp: App {
 
-private let modelContainer: ModelContainer
+    private let modelContainer: ModelContainer
 
-private let teamRepository: SyncTrackingTeamRepository
-private let tourRepository: SyncTrackingTourRepository
-private let showRepository: SyncTrackingShowRepository
+    private let teamRepository: SyncTrackingTeamRepository
+    private let tourRepository: SyncTrackingTourRepository
+    private let showRepository: SyncTrackingShowRepository
 
-init() {
+    private let syncScheduler: SyncScheduler
 
-    do {
 
-        let schema = Schema([
-            TeamEntity.self,
-            TourEntity.self,
-            ShowEntity.self,
-            SyncOperationEntity.self
-        ])
+    init() {
 
-        let container = try ModelContainer(for: schema)
+        do {
 
-        self.modelContainer = container
+            let schema = Schema([
+                TeamEntity.self,
+                TourEntity.self,
+                ShowEntity.self,
+                SyncOperationEntity.self
+            ])
 
-        let modelContext = container.mainContext
 
-        let syncOperationRepository = SwiftDataSyncOperationRepository(
-            modelContext: modelContext
-        )
+            let container = try ModelContainer(
+                for: schema
+            )
 
-        let teamRepository = SwiftDataTeamRepository(
-            modelContext: modelContext
-        )
+            self.modelContainer = container
 
-        let tourRepository = SwiftDataTourRepository(
-            modelContext: modelContext
-        )
 
-        let showRepository = SwiftDataShowRepository(
-            modelContext: modelContext
-        )
+            let modelContext = container.mainContext
 
-        self.teamRepository = SyncTrackingTeamRepository(
-            teamRepository: teamRepository,
-            syncOperationRepository: syncOperationRepository,
-            modelContext: modelContext
-        )
 
-        self.tourRepository = SyncTrackingTourRepository(
-            tourRepository: tourRepository,
-            syncOperationRepository: syncOperationRepository,
-            modelContext: modelContext
-        )
+            let syncOperationRepository =
+                SwiftDataSyncOperationRepository(
+                    modelContext: modelContext
+                )
 
-        self.showRepository = SyncTrackingShowRepository(
-            showRepository: showRepository,
-            syncOperationRepository: syncOperationRepository,
-            modelContext: modelContext
-        )
 
-    } catch {
+            let teamRepository =
+                SwiftDataTeamRepository(
+                    modelContext: modelContext
+                )
 
-        fatalError(
-            "Failed to create ModelContainer: \(error)"
-        )
+
+            let tourRepository =
+                SwiftDataTourRepository(
+                    modelContext: modelContext
+                )
+
+
+            let showRepository =
+                SwiftDataShowRepository(
+                    modelContext: modelContext
+                )
+
+
+            self.teamRepository =
+                SyncTrackingTeamRepository(
+                    teamRepository: teamRepository,
+                    syncOperationRepository: syncOperationRepository,
+                    modelContext: modelContext
+                )
+
+
+            self.tourRepository =
+                SyncTrackingTourRepository(
+                    tourRepository: tourRepository,
+                    syncOperationRepository: syncOperationRepository,
+                    modelContext: modelContext
+                )
+
+
+            self.showRepository =
+                SyncTrackingShowRepository(
+                    showRepository: showRepository,
+                    syncOperationRepository: syncOperationRepository,
+                    modelContext: modelContext
+                )
+
+
+            let syncService = DefaultSyncService()
+
+
+            let syncEngine = SyncEngine(
+                syncOperationRepository: syncOperationRepository,
+                syncService: syncService,
+                retryPolicy: SyncRetryPolicy(
+                    maxRetryCount: 3
+                ),
+                operationReducer: SyncOperationReducer()
+            )
+
+
+            self.syncScheduler =
+                SyncScheduler(
+                    syncEngine: syncEngine
+                )
+
+
+        } catch {
+
+            fatalError(
+                "Failed to create ModelContainer: \(error)"
+            )
+        }
     }
-}
 
-var body: some Scene {
 
-    WindowGroup {
+    var body: some Scene {
 
-        TeamListView(
-            repository: teamRepository,
-            tourRepository: tourRepository,
-            showRepository: showRepository
-        )
+        WindowGroup {
+
+            TeamListView(
+                repository: teamRepository,
+                tourRepository: tourRepository,
+                showRepository: showRepository
+            )
+        }
+        .modelContainer(modelContainer)
     }
-    .modelContainer(modelContainer)
-}
 }
