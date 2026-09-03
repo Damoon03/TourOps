@@ -45,6 +45,7 @@ func createTour(_ tour: Tour) async throws {
         entityID: tour.id,
         entityType: .tour,
         operationType: .create,
+        payload: nil,
         createdAt: Date(),
         status: .pending,
         retryCount: 0
@@ -65,6 +66,7 @@ func updateTour(_ tour: Tour) async throws {
         entityID: tour.id,
         entityType: .tour,
         operationType: .update,
+        payload: nil,
         createdAt: Date(),
         status: .pending,
         retryCount: 0
@@ -85,6 +87,7 @@ func deleteTour(id: UUID) async throws {
         entityID: id,
         entityType: .tour,
         operationType: .delete,
+        payload: nil,
         createdAt: Date(),
         status: .pending,
         retryCount: 0

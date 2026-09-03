@@ -45,6 +45,7 @@ final class SyncTrackingShowRepository: ShowRepositoryProtocol {
             entityID: show.id,
             entityType: .show,
             operationType: .create,
+            payload: nil,
             createdAt: Date(),
             status: .pending,
             retryCount: 0
@@ -65,6 +66,7 @@ final class SyncTrackingShowRepository: ShowRepositoryProtocol {
             entityID: show.id,
             entityType: .show,
             operationType: .update,
+            payload: nil,
             createdAt: Date(),
             status: .pending,
             retryCount: 0
@@ -85,6 +87,7 @@ final class SyncTrackingShowRepository: ShowRepositoryProtocol {
             entityID: id,
             entityType: .show,
             operationType: .delete,
+            payload: nil,
             createdAt: Date(),
             status: .pending,
             retryCount: 0

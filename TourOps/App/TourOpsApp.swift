@@ -90,8 +90,16 @@ struct TourOpsApp: App {
                 )
 
 
-            let syncService = DefaultSyncService()
+            let apiClient = APIClient()
 
+            let requestBuilder = SyncRequestBuilder(
+                baseURL: URL(string: "https://example.com")!
+            )
+
+            let syncService = DefaultSyncService(
+                apiClient: apiClient,
+                requestBuilder: requestBuilder
+            )
 
             let syncEngine = SyncEngine(
                 syncOperationRepository: syncOperationRepository,

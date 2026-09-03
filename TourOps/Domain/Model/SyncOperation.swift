@@ -26,12 +26,13 @@ enum SyncOperationStatus: String, Codable {
 }
 
 struct SyncOperation: Identifiable, Equatable {
+
     let id: UUID
     let entityID: UUID
     let entityType: SyncEntityType
     let operationType: SyncOperationType
+    let payload: String?
     let createdAt: Date
-
     var status: SyncOperationStatus
     var retryCount: Int
 }

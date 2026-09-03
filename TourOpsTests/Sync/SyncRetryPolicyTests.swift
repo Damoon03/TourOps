@@ -94,6 +94,7 @@ struct SyncRetryPolicyTests {
             entityID: UUID(),
             entityType: .show,
             operationType: .create,
+            payload: nil,
             createdAt: Date(),
             status: .failed,
             retryCount: retryCount

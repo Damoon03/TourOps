@@ -45,6 +45,7 @@ func createTeam(_ team: Team) async throws {
         entityID: team.id,
         entityType: .team,
         operationType: .create,
+        payload: nil,
         createdAt: Date(),
         status: .pending,
         retryCount: 0
@@ -65,6 +66,7 @@ func updateTeam(_ team: Team) async throws {
         entityID: team.id,
         entityType: .team,
         operationType: .update,
+        payload: nil,
         createdAt: Date(),
         status: .pending,
         retryCount: 0
@@ -85,6 +87,7 @@ func deleteTeam(id: UUID) async throws {
         entityID: id,
         entityType: .team,
         operationType: .delete,
+        payload: nil,
         createdAt: Date(),
         status: .pending,
         retryCount: 0
