@@ -15,7 +15,6 @@ final class SyncRequestBuilder: SyncRequestBuilderProtocol {
         self.baseURL = baseURL
     }
 
-
     func build(
         from operation: SyncOperation
     ) throws -> URLRequest {
@@ -29,7 +28,6 @@ final class SyncRequestBuilder: SyncRequestBuilderProtocol {
             relativeTo: baseURL
         ) else {
             throw APIClientError.invalidResponse
-            
         }
 
         var request = URLRequest(url: url)
@@ -41,6 +39,11 @@ final class SyncRequestBuilder: SyncRequestBuilderProtocol {
             forHTTPHeaderField: "Content-Type"
         )
 
+        request.setValue(
+            String(operation.version),
+            forHTTPHeaderField: "If-Match-Version"
+        )
+
         if let payload = operation.payload {
             request.httpBody = payload.data(
                 using: .utf8
@@ -49,7 +52,6 @@ final class SyncRequestBuilder: SyncRequestBuilderProtocol {
 
         return request
     }
-
 
     private func makeEndpoint(
         from operation: SyncOperation

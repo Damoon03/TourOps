@@ -40,12 +40,15 @@ struct SwiftDataTourRepositoryTests {
             name: "European Tour",
             startDate: Date(),
             endDate: Date().addingTimeInterval(86400 * 30),
-            createdAt: Date()
+            createdAt: Date(),
+            version: 1
         )
 
         try await repository.createTour(tour)
 
-        let fetchedTour = try await repository.fetchTour(id: tour.id)
+        let fetchedTour = try await repository.fetchTour(
+            id: tour.id
+        )
 
         #expect(fetchedTour == tour)
     }
@@ -61,7 +64,8 @@ struct SwiftDataTourRepositoryTests {
             name: "European Tour",
             startDate: Date(),
             endDate: Date().addingTimeInterval(86400 * 30),
-            createdAt: Date()
+            createdAt: Date(),
+            version: 1
         )
 
         let secondTour = Tour(
@@ -70,7 +74,8 @@ struct SwiftDataTourRepositoryTests {
             name: "Summer Tour",
             startDate: Date(),
             endDate: Date().addingTimeInterval(86400 * 14),
-            createdAt: Date()
+            createdAt: Date(),
+            version: 1
         )
 
         try await repository.createTour(firstTour)
@@ -97,7 +102,8 @@ struct SwiftDataTourRepositoryTests {
             name: "European Tour",
             startDate: Date(),
             endDate: Date().addingTimeInterval(86400 * 30),
-            createdAt: Date()
+            createdAt: Date(),
+            version: 1
         )
 
         try await repository.createTour(tour)
@@ -108,14 +114,47 @@ struct SwiftDataTourRepositoryTests {
             name: "Updated European Tour",
             startDate: tour.startDate,
             endDate: tour.endDate,
-            createdAt: tour.createdAt
+            createdAt: tour.createdAt,
+            version: tour.version
         )
 
         try await repository.updateTour(updatedTour)
 
-        let fetchedTour = try await repository.fetchTour(id: tour.id)
+        let fetchedTour = try await repository.fetchTour(
+            id: tour.id
+        )
 
-        #expect(fetchedTour == updatedTour)
+        #expect(fetchedTour.name == "Updated European Tour")
+        #expect(fetchedTour.version == 2)
+    }
+
+    @Test
+    func updateTourThrowsStaleVersionForOutdatedTour() async throws {
+        let tour = Tour(
+            id: UUID(),
+            teamID: UUID(),
+            name: "European Tour",
+            startDate: Date(),
+            endDate: Date().addingTimeInterval(86400 * 30),
+            createdAt: Date(),
+            version: 1
+        )
+
+        try await repository.createTour(tour)
+
+        let outdatedTour = Tour(
+            id: tour.id,
+            teamID: tour.teamID,
+            name: "Outdated European Tour",
+            startDate: tour.startDate,
+            endDate: tour.endDate,
+            createdAt: tour.createdAt,
+            version: 0
+        )
+
+        await #expect(throws: RepositoryError.staleVersion) {
+            try await repository.updateTour(outdatedTour)
+        }
     }
 
     @Test
@@ -126,7 +165,8 @@ struct SwiftDataTourRepositoryTests {
             name: "Missing Tour",
             startDate: Date(),
             endDate: Date().addingTimeInterval(86400 * 30),
-            createdAt: Date()
+            createdAt: Date(),
+            version: 1
         )
 
         await #expect(throws: RepositoryError.notFound) {
@@ -142,11 +182,11 @@ struct SwiftDataTourRepositoryTests {
             name: "European Tour",
             startDate: Date(),
             endDate: Date().addingTimeInterval(86400 * 30),
-            createdAt: Date()
+            createdAt: Date(),
+            version: 1
         )
 
         try await repository.createTour(tour)
-
         try await repository.deleteTour(id: tour.id)
 
         await #expect(throws: RepositoryError.notFound) {
@@ -163,4 +203,3 @@ struct SwiftDataTourRepositoryTests {
         }
     }
 }
-

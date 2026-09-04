@@ -32,7 +32,8 @@ struct TourOpsTests {
             genre: "Rock",
             country: "USA",
             city: "New York",
-            createdAt: Date()
+            createdAt: Date(),
+            version: 1
         )
 
         try await repository.createTeam(team)
@@ -41,6 +42,7 @@ struct TourOpsTests {
 
         #expect(teams.count == 3)
         #expect(teams.last?.name == "New Team")
+        #expect(teams.last?.version == 1)
     }
 
     @Test

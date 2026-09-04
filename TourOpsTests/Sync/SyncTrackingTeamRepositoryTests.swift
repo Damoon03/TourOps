@@ -13,156 +13,171 @@ import SwiftData
 @MainActor
 struct SyncTrackingTeamRepositoryTests {
 
-// MARK: - Create
+    // MARK: - Create
 
-@Test
-func createTeamPersistsTeamAndSyncOperation() async throws {
-    let (repository, syncOperationRepository) = try makeRepository()
+    @Test
+    func createTeamPersistsTeamAndSyncOperation() async throws {
+        let (repository, syncOperationRepository) = try makeRepository()
 
-    let team = makeTeam()
+        let team = makeTeam()
 
-    try await repository.createTeam(team)
+        try await repository.createTeam(team)
 
-    let persistedTeam = try await repository.fetchTeam(id: team.id)
-    let operations = try await syncOperationRepository.fetchPendingOperations()
+        let persistedTeam = try await repository.fetchTeam(id: team.id)
+        let operations = try await syncOperationRepository.fetchPendingOperations()
 
-    #expect(persistedTeam == team)
-    #expect(operations.count == 1)
+        #expect(persistedTeam == team)
+        #expect(operations.count == 1)
 
-    let operation = try #require(operations.first)
+        let operation = try #require(operations.first)
 
-    #expect(operation.entityID == team.id)
-    #expect(operation.entityType == .team)
-    #expect(operation.operationType == .create)
-    #expect(operation.status == .pending)
-    #expect(operation.retryCount == 0)
-}
-
-// MARK: - Update
-
-@Test
-func updateTeamPersistsTeamAndCreatesSyncOperation() async throws {
-    let (repository, syncOperationRepository) = try makeRepository()
-
-    let team = makeTeam()
-
-    try await repository.createTeam(team)
-
-    let updatedTeam = Team(
-        id: team.id,
-        name: "Updated Team",
-        genre: team.genre,
-        country: team.country,
-        city: team.city,
-        createdAt: team.createdAt
-    )
-
-    try await repository.updateTeam(updatedTeam)
-
-    let persistedTeam = try await repository.fetchTeam(id: team.id)
-    let operations = try await syncOperationRepository.fetchPendingOperations()
-
-    #expect(persistedTeam == updatedTeam)
-    #expect(operations.count == 2)
-
-    let updateOperations = operations.filter {
-        $0.operationType == .update
+        #expect(operation.entityID == team.id)
+        #expect(operation.entityType == .team)
+        #expect(operation.operationType == .create)
+        #expect(operation.version == team.version)
+        #expect(operation.status == .pending)
+        #expect(operation.retryCount == 0)
     }
 
-    #expect(updateOperations.count == 1)
+    // MARK: - Update
 
-    let operation = try #require(updateOperations.first)
+    @Test
+    func updateTeamPersistsTeamAndCreatesSyncOperation() async throws {
+        let (repository, syncOperationRepository) = try makeRepository()
 
-    #expect(operation.entityID == team.id)
-    #expect(operation.entityType == .team)
-    #expect(operation.status == .pending)
-    #expect(operation.retryCount == 0)
-}
+        let team = makeTeam()
 
-// MARK: - Delete
+        try await repository.createTeam(team)
 
-@Test
-func deleteTeamDeletesTeamAndCreatesSyncOperation() async throws {
-    let (repository, syncOperationRepository) = try makeRepository()
+        let updatedTeam = Team(
+            id: team.id,
+            name: "Updated Team",
+            genre: team.genre,
+            country: team.country,
+            city: team.city,
+            createdAt: team.createdAt,
+            version: team.version
+        )
 
-    let team = makeTeam()
+        try await repository.updateTeam(updatedTeam)
 
-    try await repository.createTeam(team)
+        let persistedTeam = try await repository.fetchTeam(id: team.id)
+        let operations = try await syncOperationRepository.fetchPendingOperations()
 
-    try await repository.deleteTeam(id: team.id)
+        #expect(persistedTeam.name == "Updated Team")
+        #expect(persistedTeam.version == 3)
 
-    await #expect(throws: RepositoryError.notFound) {
-        try await repository.fetchTeam(id: team.id)
+        #expect(operations.count == 2)
+
+        let updateOperations = operations.filter {
+            $0.operationType == .update
+        }
+
+        #expect(updateOperations.count == 1)
+
+        let operation = try #require(updateOperations.first)
+
+        #expect(operation.entityID == team.id)
+        #expect(operation.entityType == .team)
+        #expect(operation.operationType == .update)
+
+        // The operation is based on version 2.
+        #expect(operation.version == team.version)
+
+        #expect(operation.status == .pending)
+        #expect(operation.retryCount == 0)
     }
 
-    let operations = try await syncOperationRepository.fetchPendingOperations()
+    // MARK: - Delete
 
-    #expect(operations.count == 2)
+    @Test
+    func deleteTeamDeletesTeamAndCreatesSyncOperation() async throws {
+        let (repository, syncOperationRepository) = try makeRepository()
 
-    let deleteOperations = operations.filter {
-        $0.operationType == .delete
+        let team = makeTeam()
+
+        try await repository.createTeam(team)
+
+        try await repository.deleteTeam(id: team.id)
+
+        await #expect(throws: RepositoryError.notFound) {
+            try await repository.fetchTeam(id: team.id)
+        }
+
+        let operations = try await syncOperationRepository.fetchPendingOperations()
+
+        #expect(operations.count == 2)
+
+        let deleteOperations = operations.filter {
+            $0.operationType == .delete
+        }
+
+        #expect(deleteOperations.count == 1)
+
+        let operation = try #require(deleteOperations.first)
+
+        #expect(operation.entityID == team.id)
+        #expect(operation.entityType == .team)
+        #expect(operation.operationType == .delete)
+
+        // Delete is based on the version that existed before deletion.
+        #expect(operation.version == team.version)
+
+        #expect(operation.status == .pending)
+        #expect(operation.retryCount == 0)
     }
 
-    #expect(deleteOperations.count == 1)
+    // MARK: - Helpers
 
-    let operation = try #require(deleteOperations.first)
+    private func makeRepository() throws -> (
+        repository: SyncTrackingTeamRepository,
+        syncOperationRepository: SwiftDataSyncOperationRepository
+    ) {
+        let schema = Schema([
+            TeamEntity.self,
+            SyncOperationEntity.self
+        ])
 
-    #expect(operation.entityID == team.id)
-    #expect(operation.entityType == .team)
-    #expect(operation.status == .pending)
-    #expect(operation.retryCount == 0)
-}
+        let configuration = ModelConfiguration(
+            isStoredInMemoryOnly: true
+        )
 
-// MARK: - Helpers
+        let container = try ModelContainer(
+            for: schema,
+            configurations: configuration
+        )
 
-private func makeRepository() throws -> (
-    repository: SyncTrackingTeamRepository,
-    syncOperationRepository: SwiftDataSyncOperationRepository
-) {
-    let schema = Schema([
-        TeamEntity.self,
-        SyncOperationEntity.self
-    ])
+        let modelContext = ModelContext(container)
 
-    let configuration = ModelConfiguration(
-        isStoredInMemoryOnly: true
-    )
+        let teamRepository = SwiftDataTeamRepository(
+            modelContext: modelContext
+        )
 
-    let container = try ModelContainer(
-        for: schema,
-        configurations: configuration
-    )
+        let syncOperationRepository = SwiftDataSyncOperationRepository(
+            modelContext: modelContext
+        )
 
-    let modelContext = ModelContext(container)
+        let repository = SyncTrackingTeamRepository(
+            teamRepository: teamRepository,
+            syncOperationRepository: syncOperationRepository,
+            modelContext: modelContext
+        )
 
-    let teamRepository = SwiftDataTeamRepository(
-        modelContext: modelContext
-    )
+        return (
+            repository,
+            syncOperationRepository
+        )
+    }
 
-    let syncOperationRepository = SwiftDataSyncOperationRepository(
-        modelContext: modelContext
-    )
-
-    let repository = SyncTrackingTeamRepository(
-        teamRepository: teamRepository,
-        syncOperationRepository: syncOperationRepository,
-        modelContext: modelContext
-    )
-
-    return (
-        repository,
-        syncOperationRepository
-    )
-}
-
-private func makeTeam() -> Team {
-    Team(
-        id: UUID(),
-        name: "Test Team",
-        genre: "Rock",
-        country: "Azerbaijan",
-        city: "Baku",
-        createdAt: Date(timeIntervalSince1970: 900)
-    )
-}
+    private func makeTeam() -> Team {
+        Team(
+            id: UUID(),
+            name: "Test Team",
+            genre: "Rock",
+            country: "Azerbaijan",
+            city: "Baku",
+            createdAt: Date(timeIntervalSince1970: 900),
+            version: 2
+        )
+    }
 }

@@ -18,6 +18,7 @@ struct SyncTrackingShowRepositoryTests {
     @Test
     func createShowPersistsShowAndSyncOperation() async throws {
         let (repository, context) = try makeRepository()
+
         let show = makeShow()
 
         try await repository.createShow(show)
@@ -30,23 +31,32 @@ struct SyncTrackingShowRepositoryTests {
 
         #expect(shows.count == 1)
         #expect(shows.first?.id == show.id)
+        #expect(shows.first?.version == show.version)
 
         #expect(operations.count == 1)
         #expect(operations.first?.entityID == show.id)
-        #expect(operations.first?.entityType == SyncEntityType.show.rawValue)
+        #expect(
+            operations.first?.entityType ==
+            SyncEntityType.show.rawValue
+        )
         #expect(
             operations.first?.operationType ==
             SyncOperationType.create.rawValue
         )
         #expect(
+            operations.first?.version == show.version
+        )
+        #expect(
             operations.first?.status ==
             SyncOperationStatus.pending.rawValue
         )
+        #expect(operations.first?.retryCount == 0)
     }
 
     @Test
     func createShowThrowsDuplicateForExistingShow() async throws {
         let (repository, context) = try makeRepository()
+
         let show = makeShow()
 
         try await repository.createShow(show)
@@ -70,6 +80,7 @@ struct SyncTrackingShowRepositoryTests {
     @Test
     func updateShowPersistsShowChangesAndSyncOperation() async throws {
         let (repository, context) = try makeRepository()
+
         let show = makeShow()
 
         try await repository.createShow(show)
@@ -81,7 +92,8 @@ struct SyncTrackingShowRepositoryTests {
             venue: "Updated Venue",
             city: "Los Angeles",
             date: show.date,
-            createdAt: show.createdAt
+            createdAt: show.createdAt,
+            version: show.version
         )
 
         try await repository.updateShow(updatedShow)
@@ -97,23 +109,40 @@ struct SyncTrackingShowRepositoryTests {
         #expect(shows.first?.venue == "Updated Venue")
         #expect(shows.first?.city == "Los Angeles")
 
+        // The repository increments the local version after the update.
+        #expect(shows.first?.version == 3)
+
         #expect(operations.count == 2)
 
         let updateOperation = operations.first {
-            $0.operationType == SyncOperationType.update.rawValue
+            $0.operationType ==
+            SyncOperationType.update.rawValue
         }
 
         #expect(updateOperation?.entityID == show.id)
-        #expect(updateOperation?.entityType == SyncEntityType.show.rawValue)
+        #expect(
+            updateOperation?.entityType ==
+            SyncEntityType.show.rawValue
+        )
+        #expect(
+            updateOperation?.operationType ==
+            SyncOperationType.update.rawValue
+        )
+
+        // The sync operation is based on version 2.
+        #expect(updateOperation?.version == show.version)
+
         #expect(
             updateOperation?.status ==
             SyncOperationStatus.pending.rawValue
         )
+        #expect(updateOperation?.retryCount == 0)
     }
 
     @Test
     func updateShowThrowsNotFoundForMissingShow() async throws {
         let (repository, context) = try makeRepository()
+
         let show = makeShow()
 
         await #expect(throws: RepositoryError.notFound) {
@@ -131,10 +160,10 @@ struct SyncTrackingShowRepositoryTests {
     @Test
     func deleteShowRemovesShowAndCreatesSyncOperation() async throws {
         let (repository, context) = try makeRepository()
+
         let show = makeShow()
 
         try await repository.createShow(show)
-
         try await repository.deleteShow(id: show.id)
 
         let showDescriptor = FetchDescriptor<ShowEntity>()
@@ -147,20 +176,34 @@ struct SyncTrackingShowRepositoryTests {
         #expect(operations.count == 2)
 
         let deleteOperation = operations.first {
-            $0.operationType == SyncOperationType.delete.rawValue
+            $0.operationType ==
+            SyncOperationType.delete.rawValue
         }
 
         #expect(deleteOperation?.entityID == show.id)
-        #expect(deleteOperation?.entityType == SyncEntityType.show.rawValue)
+        #expect(
+            deleteOperation?.entityType ==
+            SyncEntityType.show.rawValue
+        )
+        #expect(
+            deleteOperation?.operationType ==
+            SyncOperationType.delete.rawValue
+        )
+
+        // Delete is based on the version that existed before deletion.
+        #expect(deleteOperation?.version == show.version)
+
         #expect(
             deleteOperation?.status ==
             SyncOperationStatus.pending.rawValue
         )
+        #expect(deleteOperation?.retryCount == 0)
     }
 
     @Test
     func deleteShowThrowsNotFoundForMissingShow() async throws {
         let (repository, context) = try makeRepository()
+
         let showID = UUID()
 
         await #expect(throws: RepositoryError.notFound) {
@@ -199,9 +242,10 @@ struct SyncTrackingShowRepositoryTests {
             modelContext: context
         )
 
-        let syncOperationRepository = SwiftDataSyncOperationRepository(
-            modelContext: context
-        )
+        let syncOperationRepository =
+            SwiftDataSyncOperationRepository(
+                modelContext: context
+            )
 
         let repository = SyncTrackingShowRepository(
             showRepository: showRepository,
@@ -209,7 +253,10 @@ struct SyncTrackingShowRepositoryTests {
             modelContext: context
         )
 
-        return (repository, context)
+        return (
+            repository,
+            context
+        )
     }
 
     private func makeShow() -> Show {
@@ -220,8 +267,8 @@ struct SyncTrackingShowRepositoryTests {
             venue: "The Wiltern",
             city: "Los Angeles",
             date: Date(timeIntervalSince1970: 1_000),
-            createdAt: Date(timeIntervalSince1970: 500)
-        
+            createdAt: Date(timeIntervalSince1970: 500),
+            version: 2
         )
     }
 }

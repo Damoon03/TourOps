@@ -15,7 +15,6 @@ struct SyncRetryPolicyTests {
 
     @Test
     func shouldRetryReturnsTrueWhenRetryCountIsBelowLimit() {
-
         let policy = SyncRetryPolicy(
             maxRetryCount: 3
         )
@@ -31,7 +30,6 @@ struct SyncRetryPolicyTests {
 
     @Test
     func shouldRetryReturnsFalseWhenRetryCountReachedLimit() {
-
         let policy = SyncRetryPolicy(
             maxRetryCount: 3
         )
@@ -49,7 +47,6 @@ struct SyncRetryPolicyTests {
 
     @Test
     func nextRetryCountIncrementsRetryCount() {
-
         let policy = SyncRetryPolicy()
 
         let operation = makeOperation(
@@ -67,7 +64,6 @@ struct SyncRetryPolicyTests {
 
     @Test
     func nextRetryCountWorksForFirstRetry() {
-
         let policy = SyncRetryPolicy()
 
         let operation = makeOperation(
@@ -88,13 +84,13 @@ struct SyncRetryPolicyTests {
     private func makeOperation(
         retryCount: Int
     ) -> SyncOperation {
-
         SyncOperation(
             id: UUID(),
             entityID: UUID(),
             entityType: .show,
             operationType: .create,
             payload: nil,
+            version: 1,
             createdAt: Date(),
             status: .failed,
             retryCount: retryCount

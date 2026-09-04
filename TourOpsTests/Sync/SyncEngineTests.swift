@@ -16,10 +16,8 @@ struct SyncEngineTests {
 
     @Test
     func syncSuccessfullyExecutesAndDeletesOperation() async throws {
-
         let repository = MockSyncOperationRepository()
         let service = MockSyncService()
-
         let operation = makeOperation()
 
         repository.operations = [operation]
@@ -35,12 +33,10 @@ struct SyncEngineTests {
         #expect(repository.deletedOperations.count == 1)
     }
 
-
     // MARK: - Retry
 
     @Test
     func syncReturnsOperationToPendingWhenRetryIsAvailable() async throws {
-
         let repository = MockSyncOperationRepository()
         let service = MockSyncService()
 
@@ -80,10 +76,8 @@ struct SyncEngineTests {
         )
     }
 
-
     @Test
     func syncMarksOperationFailedWhenRetryLimitReached() async throws {
-
         let repository = MockSyncOperationRepository()
         let service = MockSyncService()
 
@@ -119,12 +113,10 @@ struct SyncEngineTests {
         )
     }
 
-
     // MARK: - Reducer Integration
 
     @Test
     func syncReducesOperationsBeforeExecution() async throws {
-
         let entityID = UUID()
 
         let create = SyncOperation(
@@ -132,6 +124,8 @@ struct SyncEngineTests {
             entityID: entityID,
             entityType: .show,
             operationType: .create,
+            payload: nil,
+            version: 1,
             createdAt: Date(timeIntervalSince1970: 100),
             status: .pending,
             retryCount: 0
@@ -142,11 +136,12 @@ struct SyncEngineTests {
             entityID: entityID,
             entityType: .show,
             operationType: .update,
+            payload: nil,
+            version: 2,
             createdAt: Date(timeIntervalSince1970: 200),
             status: .pending,
             retryCount: 0
         )
-
 
         let (
             engine,
@@ -159,9 +154,7 @@ struct SyncEngineTests {
             ]
         )
 
-
         await engine.sync()
-
 
         #expect(
             service.executedOperations.count == 1
@@ -172,7 +165,6 @@ struct SyncEngineTests {
         )
     }
 
-
     // MARK: - Helpers
 
     private func makeEngine(
@@ -182,7 +174,6 @@ struct SyncEngineTests {
             maxRetryCount: 3
         )
     ) -> SyncEngine {
-
         SyncEngine(
             syncOperationRepository: repository,
             syncService: service,
@@ -191,7 +182,6 @@ struct SyncEngineTests {
         )
     }
 
-
     private func makeEngine(
         operations: [SyncOperation]
     ) throws -> (
@@ -199,7 +189,6 @@ struct SyncEngineTests {
         repository: MockSyncOperationRepository,
         service: MockSyncService
     ) {
-
         let repository = MockSyncOperationRepository(
             operations: operations
         )
@@ -218,23 +207,22 @@ struct SyncEngineTests {
         )
     }
 
-
     private func makeOperation(
         retryCount: Int = 0
     ) -> SyncOperation {
-
         SyncOperation(
             id: UUID(),
             entityID: UUID(),
             entityType: .show,
             operationType: .create,
+            payload: nil,
+            version: 1,
             createdAt: Date(),
             status: .pending,
             retryCount: retryCount
         )
     }
 }
-
 
 // MARK: - Mock Repository
 
@@ -247,45 +235,35 @@ private final class MockSyncOperationRepository:
     var updatedOperations: [SyncOperation] = []
     var deletedOperations: [SyncOperation] = []
 
-
     init(
         operations: [SyncOperation] = []
     ) {
         self.operations = operations
     }
 
-
     func fetchPendingOperations()
     async throws -> [SyncOperation] {
-
         operations
     }
-
 
     func add(
         _ operation: SyncOperation
     ) async throws {
-
         operations.append(operation)
     }
-
 
     func update(
         _ operation: SyncOperation
     ) async throws {
-
         updatedOperations.append(operation)
     }
-
 
     func delete(
         _ operation: SyncOperation
     ) async throws {
-
         deletedOperations.append(operation)
     }
 }
-
 
 // MARK: - Mock Service
 
@@ -294,14 +272,11 @@ private final class MockSyncService:
     SyncServiceProtocol {
 
     var executedOperations: [SyncOperation] = []
-
     var error: Error?
-
 
     func execute(
         _ operation: SyncOperation
     ) async throws {
-
         executedOperations.append(operation)
 
         if let error {
@@ -309,7 +284,6 @@ private final class MockSyncService:
         }
     }
 }
-
 
 // MARK: - Error
 

@@ -11,296 +11,321 @@ import Testing
 
 struct ShowListViewModelTests {
 
-@Test
-@MainActor
-func loadShowsSuccessfullyUpdatesShows() async {
-    let repository = TestShowRepository()
+    @Test
+    @MainActor
+    func loadShowsSuccessfullyUpdatesShows() async {
+        let repository = TestShowRepository()
 
-    let show1 = Show(
-        id: UUID(),
-        tourID: UUID(),
-        name: "London Show",
-        venue: "O2 Arena",
-        city: "London",
-        date: Date(),
-        createdAt: Date()
-    )
+        let show1 = Show(
+            id: UUID(),
+            tourID: UUID(),
+            name: "London Show",
+            venue: "O2 Arena",
+            city: "London",
+            date: Date(),
+            createdAt: Date(),
+            version: 1
+        )
 
-    let show2 = Show(
-        id: UUID(),
-        tourID: UUID(),
-        name: "Manchester Show",
-        venue: "AO Arena",
-        city: "Manchester",
-        date: Date().addingTimeInterval(86400),
-        createdAt: Date()
-    )
+        let show2 = Show(
+            id: UUID(),
+            tourID: UUID(),
+            name: "Manchester Show",
+            venue: "AO Arena",
+            city: "Manchester",
+            date: Date().addingTimeInterval(86400),
+            createdAt: Date(),
+            version: 1
+        )
 
-    repository.shows = [show1, show2]
+        repository.shows = [show1, show2]
 
-    let viewModel = ShowListViewModel(repository: repository)
+        let viewModel = ShowListViewModel(
+            repository: repository
+        )
 
-    await viewModel.loadShows()
+        await viewModel.loadShows()
 
-    #expect(viewModel.shows == [show1, show2])
-    #expect(viewModel.isLoading == false)
-    #expect(viewModel.errorMessage == nil)
-}
+        #expect(viewModel.shows == [show1, show2])
+        #expect(viewModel.isLoading == false)
+        #expect(viewModel.errorMessage == nil)
+    }
 
-@Test
-@MainActor
-func loadShowsFailsWithError() async {
-    let repository = TestShowRepository()
-    repository.error = RepositoryError.notFound
+    @Test
+    @MainActor
+    func loadShowsFailsWithError() async {
+        let repository = TestShowRepository()
+        repository.error = RepositoryError.notFound
 
-    let viewModel = ShowListViewModel(repository: repository)
+        let viewModel = ShowListViewModel(
+            repository: repository
+        )
 
-    await viewModel.loadShows()
+        await viewModel.loadShows()
 
-    #expect(viewModel.errorMessage != nil)
-    #expect(viewModel.shows.isEmpty)
-    #expect(viewModel.isLoading == false)
-}
+        #expect(viewModel.errorMessage != nil)
+        #expect(viewModel.shows.isEmpty)
+        #expect(viewModel.isLoading == false)
+    }
 
-@Test
-@MainActor
-func createShowSuccessfullyCreatesShow() async {
-    let repository = TestShowRepository()
-    let viewModel = ShowListViewModel(repository: repository)
+    @Test
+    @MainActor
+    func createShowSuccessfullyCreatesShow() async {
+        let repository = TestShowRepository()
 
-    let show = Show(
-        id: UUID(),
-        tourID: UUID(),
-        name: "London Show",
-        venue: "O2 Arena",
-        city: "London",
-        date: Date(),
-        createdAt: Date()
-    )
+        let viewModel = ShowListViewModel(
+            repository: repository
+        )
 
-    let success = await viewModel.createShow(show)
+        let show = Show(
+            id: UUID(),
+            tourID: UUID(),
+            name: "London Show",
+            venue: "O2 Arena",
+            city: "London",
+            date: Date(),
+            createdAt: Date(),
+            version: 1
+        )
 
-    #expect(success == true)
-    #expect(repository.shows == [show])
-    #expect(viewModel.shows == [show])
-    #expect(viewModel.errorMessage == nil)
-}
+        let success = await viewModel.createShow(show)
 
-@Test
-@MainActor
-func createShowFailsWithError() async {
-    let repository = TestShowRepository()
-    repository.createError = RepositoryError.duplicate
+        #expect(success == true)
+        #expect(repository.shows == [show])
+        #expect(viewModel.shows == [show])
+        #expect(viewModel.errorMessage == nil)
+    }
 
-    let viewModel = ShowListViewModel(repository: repository)
+    @Test
+    @MainActor
+    func createShowFailsWithError() async {
+        let repository = TestShowRepository()
+        repository.createError = RepositoryError.duplicate
 
-    let show = Show(
-        id: UUID(),
-        tourID: UUID(),
-        name: "London Show",
-        venue: "O2 Arena",
-        city: "London",
-        date: Date(),
-        createdAt: Date()
-    )
+        let viewModel = ShowListViewModel(
+            repository: repository
+        )
 
-    let success = await viewModel.createShow(show)
+        let show = Show(
+            id: UUID(),
+            tourID: UUID(),
+            name: "London Show",
+            venue: "O2 Arena",
+            city: "London",
+            date: Date(),
+            createdAt: Date(),
+            version: 1
+        )
 
-    #expect(success == false)
-    #expect(viewModel.errorMessage != nil)
-    #expect(repository.shows.isEmpty)
-}
+        let success = await viewModel.createShow(show)
 
-@Test
-@MainActor
-func updateShowSuccessfullyUpdatesShow() async {
-    let repository = TestShowRepository()
+        #expect(success == false)
+        #expect(viewModel.errorMessage != nil)
+        #expect(repository.shows.isEmpty)
+    }
 
-    let originalShow = Show(
-        id: UUID(),
-        tourID: UUID(),
-        name: "London Show",
-        venue: "O2 Arena",
-        city: "London",
-        date: Date(),
-        createdAt: Date()
-    )
+    @Test
+    @MainActor
+    func updateShowSuccessfullyUpdatesShow() async {
+        let repository = TestShowRepository()
 
-    repository.shows = [originalShow]
+        let originalShow = Show(
+            id: UUID(),
+            tourID: UUID(),
+            name: "London Show",
+            venue: "O2 Arena",
+            city: "London",
+            date: Date(),
+            createdAt: Date(),
+            version: 1
+        )
 
-    let viewModel = ShowListViewModel(repository: repository)
+        repository.shows = [originalShow]
 
-    let updatedShow = Show(
-        id: originalShow.id,
-        tourID: originalShow.tourID,
-        name: "Updated London Show",
-        venue: "Wembley Arena",
-        city: "London",
-        date: originalShow.date,
-        createdAt: originalShow.createdAt
-    )
+        let viewModel = ShowListViewModel(
+            repository: repository
+        )
 
-    let success = await viewModel.updateShow(updatedShow)
+        let updatedShow = Show(
+            id: originalShow.id,
+            tourID: originalShow.tourID,
+            name: "Updated London Show",
+            venue: "Wembley Arena",
+            city: "London",
+            date: originalShow.date,
+            createdAt: originalShow.createdAt,
+            version: originalShow.version
+        )
 
-    #expect(success == true)
-    #expect(repository.shows == [updatedShow])
-    #expect(viewModel.shows == [updatedShow])
-    #expect(viewModel.errorMessage == nil)
-}
+        let success = await viewModel.updateShow(updatedShow)
 
-@Test
-@MainActor
-func updateShowFailsWithError() async {
-    let repository = TestShowRepository()
+        #expect(success == true)
+        #expect(repository.shows == [updatedShow])
+        #expect(viewModel.shows == [updatedShow])
+        #expect(viewModel.errorMessage == nil)
+    }
 
-    let originalShow = Show(
-        id: UUID(),
-        tourID: UUID(),
-        name: "London Show",
-        venue: "O2 Arena",
-        city: "London",
-        date: Date(),
-        createdAt: Date()
-    )
+    @Test
+    @MainActor
+    func updateShowFailsWithError() async {
+        let repository = TestShowRepository()
 
-    repository.shows = [originalShow]
-    repository.updateError = RepositoryError.notFound
+        let originalShow = Show(
+            id: UUID(),
+            tourID: UUID(),
+            name: "London Show",
+            venue: "O2 Arena",
+            city: "London",
+            date: Date(),
+            createdAt: Date(),
+            version: 1
+        )
 
-    let viewModel = ShowListViewModel(repository: repository)
+        repository.shows = [originalShow]
+        repository.updateError = RepositoryError.notFound
 
-    let updatedShow = Show(
-        id: originalShow.id,
-        tourID: originalShow.tourID,
-        name: "Updated London Show",
-        venue: "Wembley Arena",
-        city: "London",
-        date: originalShow.date,
-        createdAt: originalShow.createdAt
-    )
+        let viewModel = ShowListViewModel(
+            repository: repository
+        )
 
-    let success = await viewModel.updateShow(updatedShow)
+        let updatedShow = Show(
+            id: originalShow.id,
+            tourID: originalShow.tourID,
+            name: "Updated London Show",
+            venue: "Wembley Arena",
+            city: "London",
+            date: originalShow.date,
+            createdAt: originalShow.createdAt,
+            version: originalShow.version
+        )
 
-    #expect(success == false)
-    #expect(viewModel.errorMessage != nil)
-    #expect(repository.shows == [originalShow])
-}
+        let success = await viewModel.updateShow(updatedShow)
 
-@Test
-@MainActor
-func deleteShowSuccessfullyDeletesShow() async {
-    let repository = TestShowRepository()
+        #expect(success == false)
+        #expect(viewModel.errorMessage != nil)
+        #expect(repository.shows == [originalShow])
+    }
 
-    let show = Show(
-        id: UUID(),
-        tourID: UUID(),
-        name: "London Show",
-        venue: "O2 Arena",
-        city: "London",
-        date: Date(),
-        createdAt: Date()
-    )
+    @Test
+    @MainActor
+    func deleteShowSuccessfullyDeletesShow() async {
+        let repository = TestShowRepository()
 
-    repository.shows = [show]
+        let show = Show(
+            id: UUID(),
+            tourID: UUID(),
+            name: "London Show",
+            venue: "O2 Arena",
+            city: "London",
+            date: Date(),
+            createdAt: Date(),
+            version: 1
+        )
 
-    let viewModel = ShowListViewModel(repository: repository)
+        repository.shows = [show]
 
-    let success = await viewModel.deleteShow(show)
+        let viewModel = ShowListViewModel(
+            repository: repository
+        )
 
-    #expect(success == true)
-    #expect(repository.shows.isEmpty)
-    #expect(viewModel.shows.isEmpty)
-    #expect(viewModel.errorMessage == nil)
-}
+        let success = await viewModel.deleteShow(show)
 
-@Test
-@MainActor
-func deleteShowFailsWithError() async {
-    let repository = TestShowRepository()
+        #expect(success == true)
+        #expect(repository.shows.isEmpty)
+        #expect(viewModel.shows.isEmpty)
+        #expect(viewModel.errorMessage == nil)
+    }
 
-    let show = Show(
-        id: UUID(),
-        tourID: UUID(),
-        name: "London Show",
-        venue: "O2 Arena",
-        city: "London",
-        date: Date(),
-        createdAt: Date()
-    )
+    @Test
+    @MainActor
+    func deleteShowFailsWithError() async {
+        let repository = TestShowRepository()
 
-    repository.shows = [show]
-    repository.deleteError = RepositoryError.notFound
+        let show = Show(
+            id: UUID(),
+            tourID: UUID(),
+            name: "London Show",
+            venue: "O2 Arena",
+            city: "London",
+            date: Date(),
+            createdAt: Date(),
+            version: 1
+        )
 
-    let viewModel = ShowListViewModel(repository: repository)
+        repository.shows = [show]
+        repository.deleteError = RepositoryError.notFound
 
-    let success = await viewModel.deleteShow(show)
+        let viewModel = ShowListViewModel(
+            repository: repository
+        )
 
-    #expect(success == false)
-    #expect(viewModel.errorMessage != nil)
-    #expect(repository.shows == [show])
-}
+        let success = await viewModel.deleteShow(show)
 
+        #expect(success == false)
+        #expect(viewModel.errorMessage != nil)
+        #expect(repository.shows == [show])
+    }
 }
 
 @MainActor
 private final class TestShowRepository: ShowRepositoryProtocol {
 
-var shows: [Show] = []
+    var shows: [Show] = []
 
-var error: Error?
-var createError: Error?
-var updateError: Error?
-var deleteError: Error?
+    var error: Error?
+    var createError: Error?
+    var updateError: Error?
+    var deleteError: Error?
 
-func fetchShows() async throws -> [Show] {
-    if let error {
-        throw error
+    func fetchShows() async throws -> [Show] {
+        if let error {
+            throw error
+        }
+
+        return shows
     }
 
-    return shows
-}
+    func fetchShow(id: UUID) async throws -> Show {
+        if let error {
+            throw error
+        }
 
-func fetchShow(id: UUID) async throws -> Show {
-    if let error {
-        throw error
+        guard let show = shows.first(where: { $0.id == id }) else {
+            throw RepositoryError.notFound
+        }
+
+        return show
     }
 
-    guard let show = shows.first(where: { $0.id == id }) else {
-        throw RepositoryError.notFound
+    func createShow(_ show: Show) async throws {
+        if let createError {
+            throw createError
+        }
+
+        shows.append(show)
     }
 
-    return show
-}
+    func updateShow(_ show: Show) async throws {
+        if let updateError {
+            throw updateError
+        }
 
-func createShow(_ show: Show) async throws {
-    if let createError {
-        throw createError
+        guard let index = shows.firstIndex(where: { $0.id == show.id }) else {
+            throw RepositoryError.notFound
+        }
+
+        shows[index] = show
     }
 
-    shows.append(show)
-}
+    func deleteShow(id: UUID) async throws {
+        if let deleteError {
+            throw deleteError
+        }
 
-func updateShow(_ show: Show) async throws {
-    if let updateError {
-        throw updateError
+        guard let index = shows.firstIndex(where: { $0.id == id }) else {
+            throw RepositoryError.notFound
+        }
+
+        shows.remove(at: index)
     }
-
-    guard let index = shows.firstIndex(where: { $0.id == show.id }) else {
-        throw RepositoryError.notFound
-    }
-
-    shows[index] = show
-}
-
-func deleteShow(id: UUID) async throws {
-    if let deleteError {
-        throw deleteError
-    }
-
-    guard let index = shows.firstIndex(where: { $0.id == id }) else {
-        throw RepositoryError.notFound
-    }
-
-    shows.remove(at: index)
-}
-
 }

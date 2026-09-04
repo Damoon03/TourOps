@@ -40,7 +40,8 @@ struct SwiftDataTeamRepositoryTests {
             genre: "Rock",
             country: "UK",
             city: "London",
-            createdAt: Date()
+            createdAt: Date(),
+            version: 1
         )
 
         try await repository.createTeam(team)
@@ -49,7 +50,7 @@ struct SwiftDataTeamRepositoryTests {
 
         #expect(fetchedTeam == team)
     }
-    
+
     @Test
     func createDuplicateTeamThrowsDuplicateError() async throws {
         let teamID = UUID()
@@ -60,7 +61,8 @@ struct SwiftDataTeamRepositoryTests {
             genre: "Rock",
             country: "UK",
             city: "London",
-            createdAt: Date()
+            createdAt: Date(),
+            version: 1
         )
 
         let secondTeam = Team(
@@ -69,7 +71,8 @@ struct SwiftDataTeamRepositoryTests {
             genre: "Jazz",
             country: "UK",
             city: "Manchester",
-            createdAt: Date()
+            createdAt: firstTeam.createdAt,
+            version: 1
         )
 
         try await repository.createTeam(firstTeam)
@@ -78,7 +81,7 @@ struct SwiftDataTeamRepositoryTests {
             try await repository.createTeam(secondTeam)
         }
     }
-    
+
     @Test
     func fetchTeamThrowsNotFoundForMissingTeam() async throws {
         let missingID = UUID()
@@ -87,7 +90,7 @@ struct SwiftDataTeamRepositoryTests {
             try await repository.fetchTeam(id: missingID)
         }
     }
-    
+
     @Test
     func updateTeamThrowsNotFoundForMissingTeam() async throws {
         let team = Team(
@@ -96,12 +99,78 @@ struct SwiftDataTeamRepositoryTests {
             genre: "Rock",
             country: "UK",
             city: "London",
-            createdAt: Date()
+            createdAt: Date(),
+            version: 1
         )
 
         await #expect(throws: RepositoryError.notFound) {
             try await repository.updateTeam(team)
         }
+    }
+
+    @Test
+    func updateTeamThrowsStaleVersionForOutdatedTeam() async throws {
+        let teamID = UUID()
+
+        let storedTeam = Team(
+            id: teamID,
+            name: "Original Band",
+            genre: "Rock",
+            country: "UK",
+            city: "London",
+            createdAt: Date(),
+            version: 1
+        )
+
+        try await repository.createTeam(storedTeam)
+
+        let outdatedTeam = Team(
+            id: teamID,
+            name: "Updated Band",
+            genre: "Jazz",
+            country: "UK",
+            city: "Manchester",
+            createdAt: storedTeam.createdAt,
+            version: 0
+        )
+
+        await #expect(throws: RepositoryError.staleVersion) {
+            try await repository.updateTeam(outdatedTeam)
+        }
+    }
+
+    @Test
+    func updateTeamIncrementsVersion() async throws {
+        let team = Team(
+            id: UUID(),
+            name: "Original Band",
+            genre: "Rock",
+            country: "UK",
+            city: "London",
+            createdAt: Date(),
+            version: 1
+        )
+
+        try await repository.createTeam(team)
+
+        let updatedTeam = Team(
+            id: team.id,
+            name: "Updated Band",
+            genre: "Jazz",
+            country: "UK",
+            city: "Manchester",
+            createdAt: team.createdAt,
+            version: 1
+        )
+
+        try await repository.updateTeam(updatedTeam)
+
+        let fetchedTeam = try await repository.fetchTeam(id: team.id)
+
+        #expect(fetchedTeam.name == "Updated Band")
+        #expect(fetchedTeam.genre == "Jazz")
+        #expect(fetchedTeam.city == "Manchester")
+        #expect(fetchedTeam.version == 2)
     }
 
     @Test

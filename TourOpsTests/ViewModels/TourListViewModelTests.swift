@@ -11,6 +11,7 @@ import Testing
 
 struct TourListViewModelTests {
 
+    @MainActor
     final class TestTourRepository: TourRepositoryProtocol {
 
         var tours: [Tour] = []
@@ -84,7 +85,8 @@ struct TourListViewModelTests {
             name: "European Tour",
             startDate: Date(),
             endDate: Date().addingTimeInterval(86400 * 30),
-            createdAt: Date()
+            createdAt: Date(),
+            version: 1
         )
 
         let tour2 = Tour(
@@ -93,12 +95,15 @@ struct TourListViewModelTests {
             name: "Summer Tour",
             startDate: Date(),
             endDate: Date().addingTimeInterval(86400 * 14),
-            createdAt: Date()
+            createdAt: Date(),
+            version: 1
         )
 
         repository.tours = [tour1, tour2]
 
-        let viewModel = TourListViewModel(repository: repository)
+        let viewModel = TourListViewModel(
+            repository: repository
+        )
 
         await viewModel.loadTours()
 
@@ -113,7 +118,9 @@ struct TourListViewModelTests {
         let repository = TestTourRepository()
         repository.error = RepositoryError.notFound
 
-        let viewModel = TourListViewModel(repository: repository)
+        let viewModel = TourListViewModel(
+            repository: repository
+        )
 
         await viewModel.loadTours()
 
@@ -126,7 +133,10 @@ struct TourListViewModelTests {
     @MainActor
     func createTourSuccessfullyCreatesTour() async {
         let repository = TestTourRepository()
-        let viewModel = TourListViewModel(repository: repository)
+
+        let viewModel = TourListViewModel(
+            repository: repository
+        )
 
         let tour = Tour(
             id: UUID(),
@@ -134,7 +144,8 @@ struct TourListViewModelTests {
             name: "European Tour",
             startDate: Date(),
             endDate: Date().addingTimeInterval(86400 * 30),
-            createdAt: Date()
+            createdAt: Date(),
+            version: 1
         )
 
         let success = await viewModel.createTour(tour)
@@ -151,7 +162,9 @@ struct TourListViewModelTests {
         let repository = TestTourRepository()
         repository.createError = RepositoryError.duplicate
 
-        let viewModel = TourListViewModel(repository: repository)
+        let viewModel = TourListViewModel(
+            repository: repository
+        )
 
         let tour = Tour(
             id: UUID(),
@@ -159,7 +172,8 @@ struct TourListViewModelTests {
             name: "European Tour",
             startDate: Date(),
             endDate: Date().addingTimeInterval(86400 * 30),
-            createdAt: Date()
+            createdAt: Date(),
+            version: 1
         )
 
         let success = await viewModel.createTour(tour)
@@ -180,12 +194,15 @@ struct TourListViewModelTests {
             name: "European Tour",
             startDate: Date(),
             endDate: Date().addingTimeInterval(86400 * 30),
-            createdAt: Date()
+            createdAt: Date(),
+            version: 1
         )
 
         repository.tours = [originalTour]
 
-        let viewModel = TourListViewModel(repository: repository)
+        let viewModel = TourListViewModel(
+            repository: repository
+        )
 
         let updatedTour = Tour(
             id: originalTour.id,
@@ -193,7 +210,8 @@ struct TourListViewModelTests {
             name: "Updated European Tour",
             startDate: originalTour.startDate,
             endDate: originalTour.endDate,
-            createdAt: originalTour.createdAt
+            createdAt: originalTour.createdAt,
+            version: originalTour.version
         )
 
         let success = await viewModel.updateTour(updatedTour)
@@ -215,13 +233,16 @@ struct TourListViewModelTests {
             name: "European Tour",
             startDate: Date(),
             endDate: Date().addingTimeInterval(86400 * 30),
-            createdAt: Date()
+            createdAt: Date(),
+            version: 1
         )
 
         repository.tours = [originalTour]
         repository.updateError = RepositoryError.notFound
 
-        let viewModel = TourListViewModel(repository: repository)
+        let viewModel = TourListViewModel(
+            repository: repository
+        )
 
         let updatedTour = Tour(
             id: originalTour.id,
@@ -229,7 +250,8 @@ struct TourListViewModelTests {
             name: "Updated European Tour",
             startDate: originalTour.startDate,
             endDate: originalTour.endDate,
-            createdAt: originalTour.createdAt
+            createdAt: originalTour.createdAt,
+            version: originalTour.version
         )
 
         let success = await viewModel.updateTour(updatedTour)
@@ -250,12 +272,15 @@ struct TourListViewModelTests {
             name: "European Tour",
             startDate: Date(),
             endDate: Date().addingTimeInterval(86400 * 30),
-            createdAt: Date()
+            createdAt: Date(),
+            version: 1
         )
 
         repository.tours = [tour]
 
-        let viewModel = TourListViewModel(repository: repository)
+        let viewModel = TourListViewModel(
+            repository: repository
+        )
 
         let success = await viewModel.deleteTour(tour)
 
@@ -276,13 +301,16 @@ struct TourListViewModelTests {
             name: "European Tour",
             startDate: Date(),
             endDate: Date().addingTimeInterval(86400 * 30),
-            createdAt: Date()
+            createdAt: Date(),
+            version: 1
         )
 
         repository.tours = [tour]
         repository.deleteError = RepositoryError.notFound
 
-        let viewModel = TourListViewModel(repository: repository)
+        let viewModel = TourListViewModel(
+            repository: repository
+        )
 
         let success = await viewModel.deleteTour(tour)
 

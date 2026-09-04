@@ -11,6 +11,7 @@ import Testing
 
 struct TeamListViewModelTests {
 
+    @MainActor
     final class TestTeamRepository: TeamRepositoryProtocol {
 
         var teams: [Team] = []
@@ -84,7 +85,8 @@ struct TeamListViewModelTests {
             genre: "Rock",
             country: "UK",
             city: "London",
-            createdAt: Date()
+            createdAt: Date(),
+            version: 1
         )
 
         let team2 = Team(
@@ -93,12 +95,15 @@ struct TeamListViewModelTests {
             genre: "Indie",
             country: "Germany",
             city: "Berlin",
-            createdAt: Date()
+            createdAt: Date(),
+            version: 1
         )
 
         repository.teams = [team1, team2]
 
-        let viewModel = TeamListViewModel(repository: repository)
+        let viewModel = TeamListViewModel(
+            repository: repository
+        )
 
         await viewModel.loadTeams()
 
@@ -112,7 +117,9 @@ struct TeamListViewModelTests {
         let repository = TestTeamRepository()
         repository.error = RepositoryError.notFound
 
-        let viewModel = TeamListViewModel(repository: repository)
+        let viewModel = TeamListViewModel(
+            repository: repository
+        )
 
         await viewModel.loadTeams()
 
@@ -125,7 +132,10 @@ struct TeamListViewModelTests {
     @MainActor
     func createTeamSuccessfullyCreatesTeam() async {
         let repository = TestTeamRepository()
-        let viewModel = TeamListViewModel(repository: repository)
+
+        let viewModel = TeamListViewModel(
+            repository: repository
+        )
 
         let team = Team(
             id: UUID(),
@@ -133,7 +143,8 @@ struct TeamListViewModelTests {
             genre: "Rock",
             country: "UK",
             city: "London",
-            createdAt: Date()
+            createdAt: Date(),
+            version: 1
         )
 
         let success = await viewModel.createTeam(team)
@@ -150,7 +161,9 @@ struct TeamListViewModelTests {
         let repository = TestTeamRepository()
         repository.createError = RepositoryError.duplicate
 
-        let viewModel = TeamListViewModel(repository: repository)
+        let viewModel = TeamListViewModel(
+            repository: repository
+        )
 
         let team = Team(
             id: UUID(),
@@ -158,7 +171,8 @@ struct TeamListViewModelTests {
             genre: "Rock",
             country: "UK",
             city: "London",
-            createdAt: Date()
+            createdAt: Date(),
+            version: 1
         )
 
         let success = await viewModel.createTeam(team)
@@ -179,12 +193,15 @@ struct TeamListViewModelTests {
             genre: "Rock",
             country: "UK",
             city: "London",
-            createdAt: Date()
+            createdAt: Date(),
+            version: 1
         )
 
         repository.teams = [originalTeam]
 
-        let viewModel = TeamListViewModel(repository: repository)
+        let viewModel = TeamListViewModel(
+            repository: repository
+        )
 
         let updatedTeam = Team(
             id: originalTeam.id,
@@ -192,7 +209,8 @@ struct TeamListViewModelTests {
             genre: "Indie",
             country: "Germany",
             city: "Berlin",
-            createdAt: originalTeam.createdAt
+            createdAt: originalTeam.createdAt,
+            version: originalTeam.version
         )
 
         let success = await viewModel.updateTeam(updatedTeam)
@@ -214,13 +232,16 @@ struct TeamListViewModelTests {
             genre: "Rock",
             country: "UK",
             city: "London",
-            createdAt: Date()
+            createdAt: Date(),
+            version: 1
         )
 
         repository.teams = [originalTeam]
         repository.updateError = RepositoryError.notFound
 
-        let viewModel = TeamListViewModel(repository: repository)
+        let viewModel = TeamListViewModel(
+            repository: repository
+        )
 
         let updatedTeam = Team(
             id: originalTeam.id,
@@ -228,7 +249,8 @@ struct TeamListViewModelTests {
             genre: "Indie",
             country: "Germany",
             city: "Berlin",
-            createdAt: originalTeam.createdAt
+            createdAt: originalTeam.createdAt,
+            version: originalTeam.version
         )
 
         let success = await viewModel.updateTeam(updatedTeam)
@@ -249,12 +271,15 @@ struct TeamListViewModelTests {
             genre: "Rock",
             country: "UK",
             city: "London",
-            createdAt: Date()
+            createdAt: Date(),
+            version: 1
         )
 
         repository.teams = [team]
 
-        let viewModel = TeamListViewModel(repository: repository)
+        let viewModel = TeamListViewModel(
+            repository: repository
+        )
 
         let success = await viewModel.deleteTeam(team)
 
@@ -275,13 +300,16 @@ struct TeamListViewModelTests {
             genre: "Rock",
             country: "UK",
             city: "London",
-            createdAt: Date()
+            createdAt: Date(),
+            version: 1
         )
 
         repository.teams = [team]
         repository.deleteError = RepositoryError.notFound
 
-        let viewModel = TeamListViewModel(repository: repository)
+        let viewModel = TeamListViewModel(
+            repository: repository
+        )
 
         let success = await viewModel.deleteTeam(team)
 

@@ -13,157 +13,171 @@ import SwiftData
 @MainActor
 struct SyncTrackingTourRepositoryTests {
 
-// MARK: - Create
+    // MARK: - Create
 
-@Test
-func createTourPersistsTourAndSyncOperation() async throws {
-    let (repository, syncOperationRepository) = try makeRepository()
+    @Test
+    func createTourPersistsTourAndSyncOperation() async throws {
+        let (repository, syncOperationRepository) = try makeRepository()
 
-    let tour = makeTour()
+        let tour = makeTour()
 
-    try await repository.createTour(tour)
+        try await repository.createTour(tour)
 
-    let persistedTour = try await repository.fetchTour(id: tour.id)
-    let operations = try await syncOperationRepository.fetchPendingOperations()
+        let persistedTour = try await repository.fetchTour(id: tour.id)
+        let operations = try await syncOperationRepository.fetchPendingOperations()
 
-    #expect(persistedTour == tour)
-    #expect(operations.count == 1)
+        #expect(persistedTour == tour)
+        #expect(operations.count == 1)
 
-    let operation = try #require(operations.first)
+        let operation = try #require(operations.first)
 
-    #expect(operation.entityID == tour.id)
-    #expect(operation.entityType == .tour)
-    #expect(operation.operationType == .create)
-    #expect(operation.status == .pending)
-    #expect(operation.retryCount == 0)
-}
-
-// MARK: - Update
-
-@Test
-func updateTourPersistsTourAndCreatesSyncOperation() async throws {
-    let (repository, syncOperationRepository) = try makeRepository()
-
-    let tour = makeTour()
-
-    try await repository.createTour(tour)
-
-    let updatedTour = Tour(
-        id: tour.id,
-        teamID: tour.teamID,
-        name: "Updated Tour",
-        startDate: tour.startDate,
-        endDate: tour.endDate,
-        createdAt: tour.createdAt
-    )
-
-    try await repository.updateTour(updatedTour)
-
-    let persistedTour = try await repository.fetchTour(id: tour.id)
-    let operations = try await syncOperationRepository.fetchPendingOperations()
-
-    #expect(persistedTour == updatedTour)
-    #expect(operations.count == 2)
-
-    let updateOperations = operations.filter {
-        $0.operationType == .update
+        #expect(operation.entityID == tour.id)
+        #expect(operation.entityType == .tour)
+        #expect(operation.operationType == .create)
+        #expect(operation.version == tour.version)
+        #expect(operation.status == .pending)
+        #expect(operation.retryCount == 0)
     }
 
-    #expect(updateOperations.count == 1)
+    // MARK: - Update
 
-    let operation = try #require(updateOperations.first)
+    @Test
+    func updateTourPersistsTourAndCreatesSyncOperation() async throws {
+        let (repository, syncOperationRepository) = try makeRepository()
 
-    #expect(operation.entityID == tour.id)
-    #expect(operation.entityType == .tour)
-    #expect(operation.status == .pending)
-    #expect(operation.retryCount == 0)
-}
+        let tour = makeTour()
 
-// MARK: - Delete
+        try await repository.createTour(tour)
 
-@Test
-func deleteTourDeletesTourAndCreatesSyncOperation() async throws {
-    let (repository, syncOperationRepository) = try makeRepository()
+        let updatedTour = Tour(
+            id: tour.id,
+            teamID: tour.teamID,
+            name: "Updated Tour",
+            startDate: tour.startDate,
+            endDate: tour.endDate,
+            createdAt: tour.createdAt,
+            version: tour.version
+        )
 
-    let tour = makeTour()
+        try await repository.updateTour(updatedTour)
 
-    try await repository.createTour(tour)
+        let persistedTour = try await repository.fetchTour(id: tour.id)
+        let operations = try await syncOperationRepository.fetchPendingOperations()
 
-    try await repository.deleteTour(id: tour.id)
+        #expect(persistedTour.name == "Updated Tour")
+        #expect(persistedTour.version == 3)
 
-    await #expect(throws: RepositoryError.notFound) {
-        try await repository.fetchTour(id: tour.id)
+        #expect(operations.count == 2)
+
+        let updateOperations = operations.filter {
+            $0.operationType == .update
+        }
+
+        #expect(updateOperations.count == 1)
+
+        let operation = try #require(updateOperations.first)
+
+        #expect(operation.entityID == tour.id)
+        #expect(operation.entityType == .tour)
+        #expect(operation.operationType == .update)
+
+        // The operation is based on version 2.
+        #expect(operation.version == tour.version)
+
+        #expect(operation.status == .pending)
+        #expect(operation.retryCount == 0)
     }
 
-    let operations = try await syncOperationRepository.fetchPendingOperations()
+    // MARK: - Delete
 
-    #expect(operations.count == 2)
+    @Test
+    func deleteTourDeletesTourAndCreatesSyncOperation() async throws {
+        let (repository, syncOperationRepository) = try makeRepository()
 
-    let deleteOperations = operations.filter {
-        $0.operationType == .delete
+        let tour = makeTour()
+
+        try await repository.createTour(tour)
+
+        try await repository.deleteTour(id: tour.id)
+
+        await #expect(throws: RepositoryError.notFound) {
+            try await repository.fetchTour(id: tour.id)
+        }
+
+        let operations = try await syncOperationRepository.fetchPendingOperations()
+
+        #expect(operations.count == 2)
+
+        let deleteOperations = operations.filter {
+            $0.operationType == .delete
+        }
+
+        #expect(deleteOperations.count == 1)
+
+        let operation = try #require(deleteOperations.first)
+
+        #expect(operation.entityID == tour.id)
+        #expect(operation.entityType == .tour)
+        #expect(operation.operationType == .delete)
+
+        // Delete is based on the version that existed before deletion.
+        #expect(operation.version == tour.version)
+
+        #expect(operation.status == .pending)
+        #expect(operation.retryCount == 0)
     }
 
-    #expect(deleteOperations.count == 1)
+    // MARK: - Helpers
 
-    let operation = try #require(deleteOperations.first)
+    private func makeRepository() throws -> (
+        repository: SyncTrackingTourRepository,
+        syncOperationRepository: SwiftDataSyncOperationRepository
+    ) {
+        let schema = Schema([
+            TourEntity.self,
+            SyncOperationEntity.self
+        ])
 
-    #expect(operation.entityID == tour.id)
-    #expect(operation.entityType == .tour)
-    #expect(operation.operationType == .delete)
-    #expect(operation.status == .pending)
-    #expect(operation.retryCount == 0)
-}
+        let configuration = ModelConfiguration(
+            isStoredInMemoryOnly: true
+        )
 
-// MARK: - Helpers
+        let container = try ModelContainer(
+            for: schema,
+            configurations: configuration
+        )
 
-private func makeRepository() throws -> (
-    repository: SyncTrackingTourRepository,
-    syncOperationRepository: SwiftDataSyncOperationRepository
-) {
-    let schema = Schema([
-        TourEntity.self,
-        SyncOperationEntity.self
-    ])
+        let modelContext = ModelContext(container)
 
-    let configuration = ModelConfiguration(
-        isStoredInMemoryOnly: true
-    )
+        let tourRepository = SwiftDataTourRepository(
+            modelContext: modelContext
+        )
 
-    let container = try ModelContainer(
-        for: schema,
-        configurations: configuration
-    )
+        let syncOperationRepository = SwiftDataSyncOperationRepository(
+            modelContext: modelContext
+        )
 
-    let modelContext = ModelContext(container)
+        let repository = SyncTrackingTourRepository(
+            tourRepository: tourRepository,
+            syncOperationRepository: syncOperationRepository,
+            modelContext: modelContext
+        )
 
-    let tourRepository = SwiftDataTourRepository(
-        modelContext: modelContext
-    )
+        return (
+            repository,
+            syncOperationRepository
+        )
+    }
 
-    let syncOperationRepository = SwiftDataSyncOperationRepository(
-        modelContext: modelContext
-    )
-
-    let repository = SyncTrackingTourRepository(
-        tourRepository: tourRepository,
-        syncOperationRepository: syncOperationRepository,
-        modelContext: modelContext
-    )
-
-    return (
-        repository,
-        syncOperationRepository
-    )
-}
-
-private func makeTour() -> Tour {
-    Tour(
-        id: UUID(),
-        teamID: UUID(),
-        name: "Test Tour",
-        startDate: Date(timeIntervalSince1970: 1_000),
-        endDate: Date(timeIntervalSince1970: 2_000),
-        createdAt: Date(timeIntervalSince1970: 900)
-    )
-}
+    private func makeTour() -> Tour {
+        Tour(
+            id: UUID(),
+            teamID: UUID(),
+            name: "Test Tour",
+            startDate: Date(timeIntervalSince1970: 1_000),
+            endDate: Date(timeIntervalSince1970: 2_000),
+            createdAt: Date(timeIntervalSince1970: 900),
+            version: 2
+        )
+    }
 }
