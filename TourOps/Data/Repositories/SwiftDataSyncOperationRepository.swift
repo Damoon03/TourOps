@@ -32,6 +32,7 @@ final class SwiftDataSyncOperationRepository: SyncOperationRepositoryProtocol {
         )
 
         let entities = try modelContext.fetch(descriptor)
+
         return entities.map { $0.toDomain() }
     }
 
@@ -54,6 +55,7 @@ final class SwiftDataSyncOperationRepository: SyncOperationRepositoryProtocol {
         }
 
         let entity = SyncOperationEntity(operation: operation)
+
         modelContext.insert(entity)
     }
 
@@ -78,6 +80,8 @@ final class SwiftDataSyncOperationRepository: SyncOperationRepositoryProtocol {
         entity.entityID = operation.entityID
         entity.entityType = operation.entityType.rawValue
         entity.operationType = operation.operationType.rawValue
+        entity.payload = operation.payload
+        entity.version = operation.version
         entity.status = operation.status.rawValue
         entity.createdAt = operation.createdAt
         entity.retryCount = operation.retryCount

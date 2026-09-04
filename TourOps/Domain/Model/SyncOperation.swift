@@ -2,8 +2,6 @@
 //  SyncOperation.swift
 //  TourOps
 //
-//  Created by Damoon saber on 6/7/1405 AP.
-//
 
 import Foundation
 
@@ -26,12 +24,12 @@ enum SyncOperationStatus: String, Codable {
 }
 
 struct SyncOperation: Identifiable, Equatable {
-
     let id: UUID
     let entityID: UUID
     let entityType: SyncEntityType
     let operationType: SyncOperationType
     let payload: String?
+    let version: Int
     let createdAt: Date
     var status: SyncOperationStatus
     var retryCount: Int
