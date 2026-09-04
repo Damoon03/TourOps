@@ -8,11 +8,11 @@
 import Foundation
 
 struct Tour: Identifiable, Equatable {
-
     let id: UUID
     let teamID: UUID
     let name: String
     let startDate: Date
     let endDate: Date
     let createdAt: Date
+    let version: Int
 }

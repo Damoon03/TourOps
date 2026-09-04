@@ -2,17 +2,11 @@
 //  ShowMapper.swift
 //  TourOps
 //
-//  Created by Damoon saber on 10/6/1405 AP.
-//
 
 import Foundation
 
 enum ShowMapper {
-
-    static func toDTO(
-        _ show: Show
-    ) -> ShowDTO {
-
+    static func toDTO(_ show: Show) -> ShowDTO {
         ShowDTO(
             id: show.id,
             tourID: show.tourID,
@@ -20,15 +14,12 @@ enum ShowMapper {
             venue: show.venue,
             city: show.city,
             date: show.date,
-            createdAt: show.createdAt
+            createdAt: show.createdAt,
+            version: show.version
         )
     }
 
-
-    static func toDomain(
-        _ dto: ShowDTO
-    ) -> Show {
-
+    static func toDomain(_ dto: ShowDTO) -> Show {
         Show(
             id: dto.id,
             tourID: dto.tourID,
@@ -36,7 +27,8 @@ enum ShowMapper {
             venue: dto.venue,
             city: dto.city,
             date: dto.date,
-            createdAt: dto.createdAt
+            createdAt: dto.createdAt,
+            version: dto.version
         )
     }
 }

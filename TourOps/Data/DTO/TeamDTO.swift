@@ -15,4 +15,5 @@ struct TeamDTO: Codable {
     let country: String
     let city: String
     let createdAt: Date
+    let version: Int
 }

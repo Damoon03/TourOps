@@ -16,4 +16,5 @@ struct ShowDTO: Codable {
     let city: String
     let date: Date
     let createdAt: Date
+    var version: Int
 }

@@ -10,21 +10,21 @@ import SwiftData
 
 @Model
 final class TourEntity {
-
     @Attribute(.unique) var id: UUID
     var teamID: UUID
     var name: String
     var startDate: Date
     var endDate: Date
     var createdAt: Date
-
+    var version: Int = 1
     init(
         id: UUID,
         teamID: UUID,
         name: String,
         startDate: Date,
         endDate: Date,
-        createdAt: Date
+        createdAt: Date,
+        version: Int
     ) {
         self.id = id
         self.teamID = teamID
@@ -32,11 +32,11 @@ final class TourEntity {
         self.startDate = startDate
         self.endDate = endDate
         self.createdAt = createdAt
+        self.version = version
     }
 }
 
 extension TourEntity {
-
     convenience init(tour: Tour) {
         self.init(
             id: tour.id,
@@ -44,7 +44,8 @@ extension TourEntity {
             name: tour.name,
             startDate: tour.startDate,
             endDate: tour.endDate,
-            createdAt: tour.createdAt
+            createdAt: tour.createdAt,
+            version: tour.version
         )
     }
 
@@ -55,7 +56,8 @@ extension TourEntity {
             name: name,
             startDate: startDate,
             endDate: endDate,
-            createdAt: createdAt
+            createdAt: createdAt,
+            version: version
         )
     }
 }

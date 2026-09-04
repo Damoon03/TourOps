@@ -15,4 +15,5 @@ struct TourDTO: Codable {
     let startDate: Date
     let endDate: Date
     let createdAt: Date
+    let version: Int
 }

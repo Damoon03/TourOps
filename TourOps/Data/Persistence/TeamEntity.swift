@@ -16,14 +16,15 @@ final class TeamEntity {
     var country: String
     var city: String
     var createdAt: Date
-
+    var version: Int = 1
     init(
         id: UUID,
         name: String,
         genre: String,
         country: String,
         city: String,
-        createdAt: Date
+        createdAt: Date,
+        version: Int
     ) {
         self.id = id
         self.name = name
@@ -31,11 +32,11 @@ final class TeamEntity {
         self.country = country
         self.city = city
         self.createdAt = createdAt
+        self.version = version
     }
 }
 
 extension TeamEntity {
-
     convenience init(team: Team) {
         self.init(
             id: team.id,
@@ -43,7 +44,8 @@ extension TeamEntity {
             genre: team.genre,
             country: team.country,
             city: team.city,
-            createdAt: team.createdAt
+            createdAt: team.createdAt,
+            version: team.version
         )
     }
 
@@ -54,7 +56,8 @@ extension TeamEntity {
             genre: genre,
             country: country,
             city: city,
-            createdAt: createdAt
+            createdAt: createdAt,
+            version: version
         )
     }
 }

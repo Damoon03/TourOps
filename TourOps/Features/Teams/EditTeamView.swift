@@ -8,7 +8,6 @@
 import SwiftUI
 
 struct EditTeamView: View {
-
     let team: Team
     let viewModel: TeamListViewModel
 
@@ -59,11 +58,14 @@ struct EditTeamView: View {
                         genre: genre,
                         country: country,
                         city: city,
-                        createdAt: team.createdAt
+                        createdAt: team.createdAt,
+                        version: team.version
                     )
 
                     Task {
-                        let success = await viewModel.updateTeam(updatedTeam)
+                        let success = await viewModel.updateTeam(
+                            updatedTeam
+                        )
 
                         if success {
                             dismiss()
@@ -82,7 +84,10 @@ struct EditTeamView: View {
                 viewModel.dismissError()
             }
         } message: {
-            Text(viewModel.errorMessage ?? "Something went wrong.")
+            Text(
+                viewModel.errorMessage
+                ?? "Something went wrong."
+            )
         }
     }
 }

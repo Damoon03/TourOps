@@ -8,29 +8,28 @@
 import SwiftUI
 
 struct CreateTourView: View {
-    
     @Environment(\.dismiss) private var dismiss
-    
+
     let viewModel: TourListViewModel
     let teamID: UUID
-    
+
     @State private var name = ""
     @State private var startDate = Date()
     @State private var endDate = Date()
     @State private var showingError = false
-    
+
     var body: some View {
         NavigationStack {
             Form {
                 Section("Tour Information") {
                     TextField("Name", text: $name)
-                    
+
                     DatePicker(
                         "Start Date",
                         selection: $startDate,
                         displayedComponents: .date
                     )
-                    
+
                     DatePicker(
                         "End Date",
                         selection: $endDate,
@@ -46,7 +45,7 @@ struct CreateTourView: View {
                         dismiss()
                     }
                 }
-                
+
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Create") {
                         Task {
@@ -56,11 +55,12 @@ struct CreateTourView: View {
                                 name: name,
                                 startDate: startDate,
                                 endDate: endDate,
-                                createdAt: Date()
+                                createdAt: Date(),
+                                version: 1
                             )
-                            
+
                             let success = await viewModel.createTour(tour)
-                            
+
                             if success {
                                 dismiss()
                             } else {
@@ -69,7 +69,9 @@ struct CreateTourView: View {
                         }
                     }
                     .disabled(
-                        name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                        name.trimmingCharacters(
+                            in: .whitespacesAndNewlines
+                        ).isEmpty
                         || endDate < startDate
                     )
                 }
@@ -82,7 +84,10 @@ struct CreateTourView: View {
                     viewModel.dismissError()
                 }
             } message: {
-                Text(viewModel.errorMessage ?? "Something went wrong.")
+                Text(
+                    viewModel.errorMessage
+                    ?? "Something went wrong."
+                )
             }
         }
     }

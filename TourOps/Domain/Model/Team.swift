@@ -14,4 +14,5 @@ struct Team: Identifiable, Equatable {
     let country: String
     let city: String
     let createdAt: Date
+    let version: Int
 }

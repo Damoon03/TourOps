@@ -8,43 +8,42 @@
 import SwiftUI
 
 struct EditTourView: View {
-    
     @Environment(\.dismiss) private var dismiss
-    
+
     let viewModel: TourListViewModel
-    
+
     @State private var name: String
     @State private var startDate: Date
     @State private var endDate: Date
-    
+
     private let tour: Tour
-    
+
     @State private var showingError = false
-    
+
     init(
         viewModel: TourListViewModel,
         tour: Tour
     ) {
         self.viewModel = viewModel
         self.tour = tour
-        
+
         _name = State(initialValue: tour.name)
         _startDate = State(initialValue: tour.startDate)
         _endDate = State(initialValue: tour.endDate)
     }
-    
+
     var body: some View {
         NavigationStack {
             Form {
                 Section("Tour Information") {
                     TextField("Name", text: $name)
-                    
+
                     DatePicker(
                         "Start Date",
                         selection: $startDate,
                         displayedComponents: .date
                     )
-                    
+
                     DatePicker(
                         "End Date",
                         selection: $endDate,
@@ -60,7 +59,7 @@ struct EditTourView: View {
                         dismiss()
                     }
                 }
-                
+
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
                         Task {
@@ -70,11 +69,14 @@ struct EditTourView: View {
                                 name: name,
                                 startDate: startDate,
                                 endDate: endDate,
-                                createdAt: tour.createdAt
+                                createdAt: tour.createdAt,
+                                version: tour.version
                             )
-                            
-                            let success = await viewModel.updateTour(updatedTour)
-                            
+
+                            let success = await viewModel.updateTour(
+                                updatedTour
+                            )
+
                             if success {
                                 dismiss()
                             } else {
@@ -83,7 +85,9 @@ struct EditTourView: View {
                         }
                     }
                     .disabled(
-                        name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                        name.trimmingCharacters(
+                            in: .whitespacesAndNewlines
+                        ).isEmpty
                         || endDate < startDate
                     )
                 }
@@ -96,7 +100,10 @@ struct EditTourView: View {
                     viewModel.dismissError()
                 }
             } message: {
-                Text(viewModel.errorMessage ?? "Something went wrong.")
+                Text(
+                    viewModel.errorMessage
+                    ?? "Something went wrong."
+                )
             }
         }
     }
