@@ -13,21 +13,16 @@ struct APIClientTests {
 
     @Test
     func sendDecodesSuccessfulResponse() async throws {
-        let json = """
-        {
-            "name": "Northbound"
-        }
-        """
+        let session = makeMockSession()
 
-        let session = makeMockSession(
-            data: Data(json.utf8),
-            statusCode: 200
+        let client = APIClient(
+            session: session
         )
 
-        let client = APIClient(session: session)
-
         let request = URLRequest(
-            url: URL(string: "https://example.com/teams")!
+            url: URL(
+                string: "https://example.com/teams?status=200"
+            )!
         )
 
         let response = try await client.send(
@@ -40,52 +35,62 @@ struct APIClientTests {
 
     @Test
     func sendThrowsForNonSuccessfulResponse() async {
-        let session = makeMockSession(
-            data: Data(),
-            statusCode: 500
-        )
+        let session = makeMockSession()
 
-        let client = APIClient(session: session)
+        let client = APIClient(
+            session: session
+        )
 
         let request = URLRequest(
-            url: URL(string: "https://example.com/teams")!
+            url: URL(
+                string: "https://example.com/teams?status=500"
+            )!
         )
 
-        await #expect(throws: URLError.self) {
-            try await client.send(
+        do {
+            _ = try await client.send(
                 request,
                 responseType: TestResponse.self
+            )
+
+            Issue.record(
+                "Expected APIClientError.httpError"
+            )
+        } catch let error as APIClientError {
+            switch error {
+            case .httpError(let statusCode):
+                #expect(statusCode == 500)
+
+            default:
+                Issue.record(
+                    "Expected httpError, got \(error)"
+                )
+            }
+        } catch {
+            Issue.record(
+                "Expected APIClientError, got \(error)"
             )
         }
     }
 }
 
-// MARK: - Test Support
-
 private struct TestResponse: Decodable {
     let name: String
 }
 
-private func makeMockSession(
-    data: Data,
-    statusCode: Int
-) -> URLSession {
+private func makeMockSession() -> URLSession {
     let configuration = URLSessionConfiguration.ephemeral
 
     configuration.protocolClasses = [
         MockURLProtocol.self
     ]
 
-    MockURLProtocol.responseData = data
-    MockURLProtocol.statusCode = statusCode
-
-    return URLSession(configuration: configuration)
+    return URLSession(
+        configuration: configuration
+    )
 }
 
 private final class MockURLProtocol: URLProtocol {
-
-    static var responseData = Data()
-    static var statusCode = 200
 
     override class func canInit(
         with request: URLRequest
@@ -108,9 +113,35 @@ private final class MockURLProtocol: URLProtocol {
             return
         }
 
+        let statusCode =
+            URLComponents(
+                url: url,
+                resolvingAgainstBaseURL: false
+            )?
+            .queryItems?
+            .first(where: {
+                $0.name == "status"
+            })?
+            .value
+            .flatMap(Int.init) ?? 200
+
+        let data: Data
+
+        if statusCode == 200 {
+            let json = """
+            {
+                "name": "Northbound"
+            }
+            """
+
+            data = Data(json.utf8)
+        } else {
+            data = Data()
+        }
+
         let response = HTTPURLResponse(
             url: url,
-            statusCode: Self.statusCode,
+            statusCode: statusCode,
             httpVersion: nil,
             headerFields: nil
         )!
@@ -123,10 +154,12 @@ private final class MockURLProtocol: URLProtocol {
 
         client?.urlProtocol(
             self,
-            didLoad: Self.responseData
+            didLoad: data
         )
 
-        client?.urlProtocolDidFinishLoading(self)
+        client?.urlProtocolDidFinishLoading(
+            self
+        )
     }
 
     override func stopLoading() {}
