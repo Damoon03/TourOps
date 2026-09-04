@@ -17,6 +17,8 @@ final class SwiftDataShowRepository: ShowRepositoryProtocol {
         self.modelContext = modelContext
     }
 
+    // MARK: - Fetch
+
     func fetchShows() async throws -> [Show] {
         let descriptor = FetchDescriptor<ShowEntity>(
             sortBy: [
@@ -25,6 +27,7 @@ final class SwiftDataShowRepository: ShowRepositoryProtocol {
         )
 
         let entities = try modelContext.fetch(descriptor)
+
         return entities.map { $0.toDomain() }
     }
 
@@ -59,6 +62,7 @@ final class SwiftDataShowRepository: ShowRepositoryProtocol {
         }
 
         let entity = ShowEntity(show: show)
+
         modelContext.insert(entity)
     }
 
@@ -80,11 +84,16 @@ final class SwiftDataShowRepository: ShowRepositoryProtocol {
             throw RepositoryError.notFound
         }
 
+        guard entity.version == show.version else {
+            throw RepositoryError.staleVersion
+        }
+
         entity.tourID = show.tourID
         entity.name = show.name
         entity.venue = show.venue
         entity.city = show.city
         entity.date = show.date
+        entity.version += 1
     }
 
     // MARK: - Delete

@@ -16,7 +16,8 @@ final class MockTeamRepository: TeamRepositoryProtocol {
             genre: "Alternative Rock",
             country: "UK",
             city: "London",
-            createdAt: Date()
+            createdAt: Date(),
+            version: 1
         ),
         Team(
             id: UUID(),
@@ -24,7 +25,8 @@ final class MockTeamRepository: TeamRepositoryProtocol {
             genre: "Indie Rock",
             country: "Germany",
             city: "Berlin",
-            createdAt: Date()
+            createdAt: Date(),
+            version: 1
         )
     ]
     func fetchTeams() async throws -> [Team] {

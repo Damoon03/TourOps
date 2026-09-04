@@ -46,13 +46,13 @@ final class SyncTrackingShowRepository: ShowRepositoryProtocol {
             entityType: .show,
             operationType: .create,
             payload: nil,
+            version: show.version,
             createdAt: Date(),
             status: .pending,
             retryCount: 0
         )
 
         try syncOperationRepository.stageAdd(operation)
-
         try modelContext.save()
     }
 
@@ -67,19 +67,21 @@ final class SyncTrackingShowRepository: ShowRepositoryProtocol {
             entityType: .show,
             operationType: .update,
             payload: nil,
+            version: show.version,
             createdAt: Date(),
             status: .pending,
             retryCount: 0
         )
 
         try syncOperationRepository.stageAdd(operation)
-
         try modelContext.save()
     }
 
     // MARK: - Delete
 
     func deleteShow(id: UUID) async throws {
+        let show = try await showRepository.fetchShow(id: id)
+
         try showRepository.stageDeleteShow(id: id)
 
         let operation = SyncOperation(
@@ -88,13 +90,13 @@ final class SyncTrackingShowRepository: ShowRepositoryProtocol {
             entityType: .show,
             operationType: .delete,
             payload: nil,
+            version: show.version,
             createdAt: Date(),
             status: .pending,
             retryCount: 0
         )
 
         try syncOperationRepository.stageAdd(operation)
-
         try modelContext.save()
     }
 }

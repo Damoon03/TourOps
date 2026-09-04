@@ -11,90 +11,92 @@ import SwiftData
 @MainActor
 final class SyncTrackingTeamRepository: TeamRepositoryProtocol {
 
-private let teamRepository: SwiftDataTeamRepository
-private let syncOperationRepository: SwiftDataSyncOperationRepository
-private let modelContext: ModelContext
+    private let teamRepository: SwiftDataTeamRepository
+    private let syncOperationRepository: SwiftDataSyncOperationRepository
+    private let modelContext: ModelContext
 
-init(
-    teamRepository: SwiftDataTeamRepository,
-    syncOperationRepository: SwiftDataSyncOperationRepository,
-    modelContext: ModelContext
-) {
-    self.teamRepository = teamRepository
-    self.syncOperationRepository = syncOperationRepository
-    self.modelContext = modelContext
-}
+    init(
+        teamRepository: SwiftDataTeamRepository,
+        syncOperationRepository: SwiftDataSyncOperationRepository,
+        modelContext: ModelContext
+    ) {
+        self.teamRepository = teamRepository
+        self.syncOperationRepository = syncOperationRepository
+        self.modelContext = modelContext
+    }
 
-// MARK: - Fetch
+    // MARK: - Fetch
 
-func fetchTeams() async throws -> [Team] {
-    try await teamRepository.fetchTeams()
-}
+    func fetchTeams() async throws -> [Team] {
+        try await teamRepository.fetchTeams()
+    }
 
-func fetchTeam(id: UUID) async throws -> Team {
-    try await teamRepository.fetchTeam(id: id)
-}
+    func fetchTeam(id: UUID) async throws -> Team {
+        try await teamRepository.fetchTeam(id: id)
+    }
 
-// MARK: - Create
+    // MARK: - Create
 
-func createTeam(_ team: Team) async throws {
-    try teamRepository.stageCreateTeam(team)
+    func createTeam(_ team: Team) async throws {
+        try teamRepository.stageCreateTeam(team)
 
-    let operation = SyncOperation(
-        id: UUID(),
-        entityID: team.id,
-        entityType: .team,
-        operationType: .create,
-        payload: nil,
-        createdAt: Date(),
-        status: .pending,
-        retryCount: 0
-    )
+        let operation = SyncOperation(
+            id: UUID(),
+            entityID: team.id,
+            entityType: .team,
+            operationType: .create,
+            payload: nil,
+            version: team.version,
+            createdAt: Date(),
+            status: .pending,
+            retryCount: 0
+        )
 
-    try syncOperationRepository.stageAdd(operation)
+        try syncOperationRepository.stageAdd(operation)
+        try modelContext.save()
+    }
 
-    try modelContext.save()
-}
+    // MARK: - Update
 
-// MARK: - Update
+    func updateTeam(_ team: Team) async throws {
+        try teamRepository.stageUpdateTeam(team)
 
-func updateTeam(_ team: Team) async throws {
-    try teamRepository.stageUpdateTeam(team)
+        let operation = SyncOperation(
+            id: UUID(),
+            entityID: team.id,
+            entityType: .team,
+            operationType: .update,
+            payload: nil,
+            version: team.version,
+            createdAt: Date(),
+            status: .pending,
+            retryCount: 0
+        )
 
-    let operation = SyncOperation(
-        id: UUID(),
-        entityID: team.id,
-        entityType: .team,
-        operationType: .update,
-        payload: nil,
-        createdAt: Date(),
-        status: .pending,
-        retryCount: 0
-    )
+        try syncOperationRepository.stageAdd(operation)
+        try modelContext.save()
+    }
 
-    try syncOperationRepository.stageAdd(operation)
+    // MARK: - Delete
 
-    try modelContext.save()
-}
+    func deleteTeam(id: UUID) async throws {
+        let team = try await teamRepository.fetchTeam(id: id)
 
-// MARK: - Delete
+        try teamRepository.stageDeleteTeam(id: id)
 
-func deleteTeam(id: UUID) async throws {
-    try teamRepository.stageDeleteTeam(id: id)
+        let operation = SyncOperation(
+            id: UUID(),
+            entityID: id,
+            entityType: .team,
+            operationType: .delete,
+            payload: nil,
+            version: team.version,
+            createdAt: Date(),
+            status: .pending,
+            retryCount: 0
+        )
 
-    let operation = SyncOperation(
-        id: UUID(),
-        entityID: id,
-        entityType: .team,
-        operationType: .delete,
-        payload: nil,
-        createdAt: Date(),
-        status: .pending,
-        retryCount: 0
-    )
-
-    try syncOperationRepository.stageAdd(operation)
-
-    try modelContext.save()
-}
+        try syncOperationRepository.stageAdd(operation)
+        try modelContext.save()
+    }
 }
