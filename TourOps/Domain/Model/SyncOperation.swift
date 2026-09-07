@@ -21,6 +21,7 @@ enum SyncOperationStatus: String, Codable {
     case pending
     case processing
     case failed
+    case conflict
 }
 
 struct SyncOperation: Identifiable, Equatable {

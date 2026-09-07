@@ -112,6 +112,51 @@ struct SyncEngineTests {
             finalOperation?.retryCount == 4
         )
     }
+    
+    @Test
+    func syncMarksOperationAsConflictWithoutRetrying() async throws {
+        let repository = MockSyncOperationRepository()
+        let service = MockSyncService()
+
+        service.error = SyncError.conflict
+
+        let operation = makeOperation(
+            retryCount: 0
+        )
+
+        repository.operations = [operation]
+
+        let engine = makeEngine(
+            repository: repository,
+            service: service
+        )
+
+        await engine.sync()
+
+        #expect(repository.updatedOperations.count == 2)
+
+        let processingOperation =
+            repository.updatedOperations[0]
+
+        let conflictOperation =
+            repository.updatedOperations[1]
+
+        #expect(
+            processingOperation.status == .processing
+        )
+
+        #expect(
+            conflictOperation.status == .conflict
+        )
+
+        #expect(
+            conflictOperation.retryCount == 0
+        )
+
+        #expect(
+            repository.deletedOperations.isEmpty
+        )
+    }
 
     // MARK: - Reducer Integration
 

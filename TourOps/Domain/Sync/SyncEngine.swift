@@ -55,9 +55,7 @@ final class SyncEngine: SyncEngineProtocol {
     private func process(
         _ operation: SyncOperation
     ) async {
-
         do {
-
             var processingOperation = operation
             processingOperation.status = .processing
 
@@ -72,35 +70,40 @@ final class SyncEngine: SyncEngineProtocol {
             try await syncOperationRepository.delete(
                 processingOperation
             )
-
         } catch {
-
             await handleFailure(
-                operation
+                operation,
+                error: error
             )
         }
     }
 
 
     private func handleFailure(
-        _ operation: SyncOperation
+        _ operation: SyncOperation,
+        error: Error
     ) async {
-
         var failedOperation = operation
+
+        if error is SyncError {
+            failedOperation.status = .conflict
+
+            try? await syncOperationRepository.update(
+                failedOperation
+            )
+
+            return
+        }
 
         failedOperation.retryCount += 1
 
         if retryPolicy.shouldRetry(
             failedOperation
         ) {
-
             failedOperation.status = .pending
-
         } else {
-
             failedOperation.status = .failed
         }
-
 
         try? await syncOperationRepository.update(
             failedOperation
