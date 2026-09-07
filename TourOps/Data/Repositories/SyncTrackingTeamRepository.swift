@@ -40,12 +40,21 @@ final class SyncTrackingTeamRepository: TeamRepositoryProtocol {
     func createTeam(_ team: Team) async throws {
         try teamRepository.stageCreateTeam(team)
 
+        let payloadData = try JSONEncoder().encode(
+            TeamMapper.toDTO(team)
+        )
+
+        let payload = String(
+            data: payloadData,
+            encoding: .utf8
+        )
+
         let operation = SyncOperation(
             id: UUID(),
             entityID: team.id,
             entityType: .team,
             operationType: .create,
-            payload: nil,
+            payload: payload,
             version: team.version,
             createdAt: Date(),
             status: .pending,
@@ -61,12 +70,21 @@ final class SyncTrackingTeamRepository: TeamRepositoryProtocol {
     func updateTeam(_ team: Team) async throws {
         try teamRepository.stageUpdateTeam(team)
 
+        let payloadData = try JSONEncoder().encode(
+            TeamMapper.toDTO(team)
+        )
+
+        let payload = String(
+            data: payloadData,
+            encoding: .utf8
+        )
+
         let operation = SyncOperation(
             id: UUID(),
             entityID: team.id,
             entityType: .team,
             operationType: .update,
-            payload: nil,
+            payload: payload,
             version: team.version,
             createdAt: Date(),
             status: .pending,

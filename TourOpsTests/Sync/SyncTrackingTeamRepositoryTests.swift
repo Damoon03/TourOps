@@ -18,7 +18,6 @@ struct SyncTrackingTeamRepositoryTests {
     @Test
     func createTeamPersistsTeamAndSyncOperation() async throws {
         let (repository, syncOperationRepository) = try makeRepository()
-
         let team = makeTeam()
 
         try await repository.createTeam(team)
@@ -37,6 +36,25 @@ struct SyncTrackingTeamRepositoryTests {
         #expect(operation.version == team.version)
         #expect(operation.status == .pending)
         #expect(operation.retryCount == 0)
+
+        let payload = try #require(operation.payload)
+
+        let payloadData = try #require(
+            payload.data(using: .utf8)
+        )
+
+        let dto = try JSONDecoder().decode(
+            TeamDTO.self,
+            from: payloadData
+        )
+
+        #expect(dto.id == team.id)
+        #expect(dto.name == team.name)
+        #expect(dto.genre == team.genre)
+        #expect(dto.country == team.country)
+        #expect(dto.city == team.city)
+        #expect(dto.createdAt == team.createdAt)
+        #expect(dto.version == team.version)
     }
 
     // MARK: - Update
@@ -44,7 +62,6 @@ struct SyncTrackingTeamRepositoryTests {
     @Test
     func updateTeamPersistsTeamAndCreatesSyncOperation() async throws {
         let (repository, syncOperationRepository) = try makeRepository()
-
         let team = makeTeam()
 
         try await repository.createTeam(team)
@@ -66,7 +83,6 @@ struct SyncTrackingTeamRepositoryTests {
 
         #expect(persistedTeam.name == "Updated Team")
         #expect(persistedTeam.version == 3)
-
         #expect(operations.count == 2)
 
         let updateOperations = operations.filter {
@@ -86,6 +102,25 @@ struct SyncTrackingTeamRepositoryTests {
 
         #expect(operation.status == .pending)
         #expect(operation.retryCount == 0)
+
+        let payload = try #require(operation.payload)
+
+        let payloadData = try #require(
+            payload.data(using: .utf8)
+        )
+
+        let dto = try JSONDecoder().decode(
+            TeamDTO.self,
+            from: payloadData
+        )
+
+        #expect(dto.id == updatedTeam.id)
+        #expect(dto.name == updatedTeam.name)
+        #expect(dto.genre == updatedTeam.genre)
+        #expect(dto.country == updatedTeam.country)
+        #expect(dto.city == updatedTeam.city)
+        #expect(dto.createdAt == updatedTeam.createdAt)
+        #expect(dto.version == updatedTeam.version)
     }
 
     // MARK: - Delete
@@ -93,11 +128,9 @@ struct SyncTrackingTeamRepositoryTests {
     @Test
     func deleteTeamDeletesTeamAndCreatesSyncOperation() async throws {
         let (repository, syncOperationRepository) = try makeRepository()
-
         let team = makeTeam()
 
         try await repository.createTeam(team)
-
         try await repository.deleteTeam(id: team.id)
 
         await #expect(throws: RepositoryError.notFound) {
@@ -125,6 +158,7 @@ struct SyncTrackingTeamRepositoryTests {
 
         #expect(operation.status == .pending)
         #expect(operation.retryCount == 0)
+        #expect(operation.payload == nil)
     }
 
     // MARK: - Helpers

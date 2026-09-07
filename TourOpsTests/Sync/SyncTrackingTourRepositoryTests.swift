@@ -18,7 +18,6 @@ struct SyncTrackingTourRepositoryTests {
     @Test
     func createTourPersistsTourAndSyncOperation() async throws {
         let (repository, syncOperationRepository) = try makeRepository()
-
         let tour = makeTour()
 
         try await repository.createTour(tour)
@@ -37,6 +36,25 @@ struct SyncTrackingTourRepositoryTests {
         #expect(operation.version == tour.version)
         #expect(operation.status == .pending)
         #expect(operation.retryCount == 0)
+
+        let payload = try #require(operation.payload)
+
+        let payloadData = try #require(
+            payload.data(using: .utf8)
+        )
+
+        let dto = try JSONDecoder().decode(
+            TourDTO.self,
+            from: payloadData
+        )
+
+        #expect(dto.id == tour.id)
+        #expect(dto.teamID == tour.teamID)
+        #expect(dto.name == tour.name)
+        #expect(dto.startDate == tour.startDate)
+        #expect(dto.endDate == tour.endDate)
+        #expect(dto.createdAt == tour.createdAt)
+        #expect(dto.version == tour.version)
     }
 
     // MARK: - Update
@@ -44,7 +62,6 @@ struct SyncTrackingTourRepositoryTests {
     @Test
     func updateTourPersistsTourAndCreatesSyncOperation() async throws {
         let (repository, syncOperationRepository) = try makeRepository()
-
         let tour = makeTour()
 
         try await repository.createTour(tour)
@@ -66,7 +83,6 @@ struct SyncTrackingTourRepositoryTests {
 
         #expect(persistedTour.name == "Updated Tour")
         #expect(persistedTour.version == 3)
-
         #expect(operations.count == 2)
 
         let updateOperations = operations.filter {
@@ -86,6 +102,25 @@ struct SyncTrackingTourRepositoryTests {
 
         #expect(operation.status == .pending)
         #expect(operation.retryCount == 0)
+
+        let payload = try #require(operation.payload)
+
+        let payloadData = try #require(
+            payload.data(using: .utf8)
+        )
+
+        let dto = try JSONDecoder().decode(
+            TourDTO.self,
+            from: payloadData
+        )
+
+        #expect(dto.id == updatedTour.id)
+        #expect(dto.teamID == updatedTour.teamID)
+        #expect(dto.name == updatedTour.name)
+        #expect(dto.startDate == updatedTour.startDate)
+        #expect(dto.endDate == updatedTour.endDate)
+        #expect(dto.createdAt == updatedTour.createdAt)
+        #expect(dto.version == updatedTour.version)
     }
 
     // MARK: - Delete
@@ -93,11 +128,9 @@ struct SyncTrackingTourRepositoryTests {
     @Test
     func deleteTourDeletesTourAndCreatesSyncOperation() async throws {
         let (repository, syncOperationRepository) = try makeRepository()
-
         let tour = makeTour()
 
         try await repository.createTour(tour)
-
         try await repository.deleteTour(id: tour.id)
 
         await #expect(throws: RepositoryError.notFound) {
@@ -125,6 +158,7 @@ struct SyncTrackingTourRepositoryTests {
 
         #expect(operation.status == .pending)
         #expect(operation.retryCount == 0)
+        #expect(operation.payload == nil)
     }
 
     // MARK: - Helpers

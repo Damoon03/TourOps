@@ -39,13 +39,21 @@ final class SyncTrackingShowRepository: ShowRepositoryProtocol {
 
     func createShow(_ show: Show) async throws {
         try showRepository.stageCreateShow(show)
+        let payloadData = try JSONEncoder().encode(
+            ShowMapper.toDTO(show)
+        )
+
+        let payload = String(
+            data: payloadData,
+            encoding: .utf8
+        )
 
         let operation = SyncOperation(
             id: UUID(),
             entityID: show.id,
             entityType: .show,
             operationType: .create,
-            payload: nil,
+            payload: payload,
             version: show.version,
             createdAt: Date(),
             status: .pending,
@@ -61,12 +69,21 @@ final class SyncTrackingShowRepository: ShowRepositoryProtocol {
     func updateShow(_ show: Show) async throws {
         try showRepository.stageUpdateShow(show)
 
+        let payloadData = try JSONEncoder().encode(
+            ShowMapper.toDTO(show)
+        )
+
+        let payload = String(
+            data: payloadData,
+            encoding: .utf8
+        )
+
         let operation = SyncOperation(
             id: UUID(),
             entityID: show.id,
             entityType: .show,
             operationType: .update,
-            payload: nil,
+            payload: payload,
             version: show.version,
             createdAt: Date(),
             status: .pending,
@@ -76,7 +93,7 @@ final class SyncTrackingShowRepository: ShowRepositoryProtocol {
         try syncOperationRepository.stageAdd(operation)
         try modelContext.save()
     }
-
+    
     // MARK: - Delete
 
     func deleteShow(id: UUID) async throws {

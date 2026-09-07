@@ -40,12 +40,21 @@ final class SyncTrackingTourRepository: TourRepositoryProtocol {
     func createTour(_ tour: Tour) async throws {
         try tourRepository.stageCreateTour(tour)
 
+        let payloadData = try JSONEncoder().encode(
+            TourMapper.toDTO(tour)
+        )
+
+        let payload = String(
+            data: payloadData,
+            encoding: .utf8
+        )
+
         let operation = SyncOperation(
             id: UUID(),
             entityID: tour.id,
             entityType: .tour,
             operationType: .create,
-            payload: nil,
+            payload: payload,
             version: tour.version,
             createdAt: Date(),
             status: .pending,
@@ -61,12 +70,21 @@ final class SyncTrackingTourRepository: TourRepositoryProtocol {
     func updateTour(_ tour: Tour) async throws {
         try tourRepository.stageUpdateTour(tour)
 
+        let payloadData = try JSONEncoder().encode(
+            TourMapper.toDTO(tour)
+        )
+
+        let payload = String(
+            data: payloadData,
+            encoding: .utf8
+        )
+
         let operation = SyncOperation(
             id: UUID(),
             entityID: tour.id,
             entityType: .tour,
             operationType: .update,
-            payload: nil,
+            payload: payload,
             version: tour.version,
             createdAt: Date(),
             status: .pending,

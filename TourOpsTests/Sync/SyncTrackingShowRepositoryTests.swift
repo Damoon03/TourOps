@@ -18,7 +18,6 @@ struct SyncTrackingShowRepositoryTests {
     @Test
     func createShowPersistsShowAndSyncOperation() async throws {
         let (repository, context) = try makeRepository()
-
         let show = makeShow()
 
         try await repository.createShow(show)
@@ -35,28 +34,52 @@ struct SyncTrackingShowRepositoryTests {
 
         #expect(operations.count == 1)
         #expect(operations.first?.entityID == show.id)
+
         #expect(
             operations.first?.entityType ==
             SyncEntityType.show.rawValue
         )
+
         #expect(
             operations.first?.operationType ==
             SyncOperationType.create.rawValue
         )
+
         #expect(
             operations.first?.version == show.version
         )
+
         #expect(
             operations.first?.status ==
             SyncOperationStatus.pending.rawValue
         )
+
         #expect(operations.first?.retryCount == 0)
+
+        let payload = try #require(
+            operations.first?.payload
+        )
+
+        let payloadData = try #require(
+            payload.data(using: .utf8)
+        )
+
+        let dto = try JSONDecoder().decode(
+            ShowDTO.self,
+            from: payloadData
+        )
+
+        #expect(dto.id == show.id)
+        #expect(dto.tourID == show.tourID)
+        #expect(dto.name == show.name)
+        #expect(dto.venue == show.venue)
+        #expect(dto.city == show.city)
+        #expect(dto.version == show.version)
     }
 
     @Test
     func createShowThrowsDuplicateForExistingShow() async throws {
         let (repository, context) = try makeRepository()
-
         let show = makeShow()
 
         try await repository.createShow(show)
@@ -80,7 +103,6 @@ struct SyncTrackingShowRepositoryTests {
     @Test
     func updateShowPersistsShowChangesAndSyncOperation() async throws {
         let (repository, context) = try makeRepository()
-
         let show = makeShow()
 
         try await repository.createShow(show)
@@ -120,10 +142,12 @@ struct SyncTrackingShowRepositoryTests {
         }
 
         #expect(updateOperation?.entityID == show.id)
+
         #expect(
             updateOperation?.entityType ==
             SyncEntityType.show.rawValue
         )
+
         #expect(
             updateOperation?.operationType ==
             SyncOperationType.update.rawValue
@@ -136,13 +160,33 @@ struct SyncTrackingShowRepositoryTests {
             updateOperation?.status ==
             SyncOperationStatus.pending.rawValue
         )
+
         #expect(updateOperation?.retryCount == 0)
+
+        let payload = try #require(
+            updateOperation?.payload
+        )
+
+        let payloadData = try #require(
+            payload.data(using: .utf8)
+        )
+
+        let dto = try JSONDecoder().decode(
+            ShowDTO.self,
+            from: payloadData
+        )
+
+        #expect(dto.id == updatedShow.id)
+        #expect(dto.tourID == updatedShow.tourID)
+        #expect(dto.name == updatedShow.name)
+        #expect(dto.venue == updatedShow.venue)
+        #expect(dto.city == updatedShow.city)
+        #expect(dto.version == updatedShow.version)
     }
 
     @Test
     func updateShowThrowsNotFoundForMissingShow() async throws {
         let (repository, context) = try makeRepository()
-
         let show = makeShow()
 
         await #expect(throws: RepositoryError.notFound) {
@@ -160,7 +204,6 @@ struct SyncTrackingShowRepositoryTests {
     @Test
     func deleteShowRemovesShowAndCreatesSyncOperation() async throws {
         let (repository, context) = try makeRepository()
-
         let show = makeShow()
 
         try await repository.createShow(show)
@@ -181,10 +224,12 @@ struct SyncTrackingShowRepositoryTests {
         }
 
         #expect(deleteOperation?.entityID == show.id)
+
         #expect(
             deleteOperation?.entityType ==
             SyncEntityType.show.rawValue
         )
+
         #expect(
             deleteOperation?.operationType ==
             SyncOperationType.delete.rawValue
@@ -197,13 +242,14 @@ struct SyncTrackingShowRepositoryTests {
             deleteOperation?.status ==
             SyncOperationStatus.pending.rawValue
         )
+
         #expect(deleteOperation?.retryCount == 0)
+        #expect(deleteOperation?.payload == nil)
     }
 
     @Test
     func deleteShowThrowsNotFoundForMissingShow() async throws {
         let (repository, context) = try makeRepository()
-
         let showID = UUID()
 
         await #expect(throws: RepositoryError.notFound) {
