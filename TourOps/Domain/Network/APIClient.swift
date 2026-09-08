@@ -19,7 +19,6 @@ final class APIClient: APIClientProtocol {
         _ request: URLRequest,
         responseType: Response.Type
     ) async throws -> Response {
-
         let (data, response) = try await session.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse else {

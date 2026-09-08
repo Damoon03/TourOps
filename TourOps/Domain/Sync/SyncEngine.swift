@@ -2,7 +2,7 @@
 //  SyncEngine.swift
 //  TourOps
 //
-//  Created by Damoon saber on 9/8/1405 AP.
+//  Created by Damoon saber on 6/7/1405 AP.
 //
 
 import Foundation
@@ -14,6 +14,8 @@ final class SyncEngine: SyncEngineProtocol {
     private let syncService: SyncServiceProtocol
     private let retryPolicy: SyncRetryPolicy
     private let operationReducer: SyncOperationReducer
+
+    private var isSyncing = false
 
     init(
         syncOperationRepository: SyncOperationRepositoryProtocol,
@@ -27,11 +29,18 @@ final class SyncEngine: SyncEngineProtocol {
         self.operationReducer = operationReducer
     }
 
-
     func sync() async {
+        guard !isSyncing else {
+            return
+        }
+
+        isSyncing = true
+
+        defer {
+            isSyncing = false
+        }
 
         do {
-
             let pendingOperations =
                 try await syncOperationRepository.fetchPendingOperations()
 
@@ -41,20 +50,14 @@ final class SyncEngine: SyncEngineProtocol {
                 )
 
             for operation in operations {
-
                 await process(operation)
             }
-
         } catch {
-
             return
         }
     }
 
-
-    private func process(
-        _ operation: SyncOperation
-    ) async {
+    private func process(_ operation: SyncOperation) async {
         do {
             var processingOperation = operation
             processingOperation.status = .processing
@@ -78,15 +81,26 @@ final class SyncEngine: SyncEngineProtocol {
         }
     }
 
-
     private func handleFailure(
         _ operation: SyncOperation,
         error: Error
     ) async {
-        var failedOperation = operation
+        if case SyncError.conflict = error {
+            var conflictOperation = operation
+            conflictOperation.status = .conflict
 
-        if error is SyncError {
-            failedOperation.status = .conflict
+            try? await syncOperationRepository.update(
+                conflictOperation
+            )
+
+            return
+        }
+
+        if let apiError = error as? APIClientError,
+           !apiError.isRetryable {
+
+            var failedOperation = operation
+            failedOperation.status = .failed
 
             try? await syncOperationRepository.update(
                 failedOperation
@@ -95,11 +109,10 @@ final class SyncEngine: SyncEngineProtocol {
             return
         }
 
+        var failedOperation = operation
         failedOperation.retryCount += 1
 
-        if retryPolicy.shouldRetry(
-            failedOperation
-        ) {
+        if retryPolicy.shouldRetry(failedOperation) {
             failedOperation.status = .pending
         } else {
             failedOperation.status = .failed

@@ -20,9 +20,29 @@ final class SwiftDataSyncOperationRepository: SyncOperationRepositoryProtocol {
     // MARK: - Fetch
 
     func fetchPendingOperations() async throws -> [SyncOperation] {
+        let processingStatus = SyncOperationStatus.processing.rawValue
+
+        let processingDescriptor = FetchDescriptor<SyncOperationEntity>(
+            predicate: #Predicate {
+                $0.status == processingStatus
+            }
+        )
+
+        let processingEntities = try modelContext.fetch(
+            processingDescriptor
+        )
+
+        for entity in processingEntities {
+            entity.status = SyncOperationStatus.pending.rawValue
+        }
+
+        if !processingEntities.isEmpty {
+            try modelContext.save()
+        }
+
         let pendingStatus = SyncOperationStatus.pending.rawValue
 
-        let descriptor = FetchDescriptor<SyncOperationEntity>(
+        let pendingDescriptor = FetchDescriptor<SyncOperationEntity>(
             predicate: #Predicate {
                 $0.status == pendingStatus
             },
@@ -31,7 +51,9 @@ final class SwiftDataSyncOperationRepository: SyncOperationRepositoryProtocol {
             ]
         )
 
-        let entities = try modelContext.fetch(descriptor)
+        let entities = try modelContext.fetch(
+            pendingDescriptor
+        )
 
         return entities.map { $0.toDomain() }
     }
@@ -55,7 +77,6 @@ final class SwiftDataSyncOperationRepository: SyncOperationRepositoryProtocol {
         }
 
         let entity = SyncOperationEntity(operation: operation)
-
         modelContext.insert(entity)
     }
 

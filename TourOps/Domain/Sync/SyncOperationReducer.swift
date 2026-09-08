@@ -2,7 +2,7 @@
 //  SyncOperationReducer.swift
 //  TourOps
 //
-//  Created by Damoon saber on 10/6/1405 AP.
+//  Created by Damoon saber on 6/7/1405 AP.
 //
 
 import Foundation
@@ -12,11 +12,9 @@ struct SyncOperationReducer {
     func reduce(
         _ operations: [SyncOperation]
     ) -> [SyncOperation] {
-
         var reducedOperations: [UUID: SyncOperation] = [:]
 
         for operation in operations {
-
             let entityID = operation.entityID
 
             guard let existing = reducedOperations[entityID] else {
@@ -24,17 +22,12 @@ struct SyncOperationReducer {
                 continue
             }
 
-            let merged = merge(
-                existing,
-                operation
-            )
+            let merged = merge(existing, operation)
 
             if let merged {
                 reducedOperations[entityID] = merged
             } else {
-                reducedOperations.removeValue(
-                    forKey: entityID
-                )
+                reducedOperations.removeValue(forKey: entityID)
             }
         }
 
@@ -43,19 +36,24 @@ struct SyncOperationReducer {
         }
     }
 
-
     private func merge(
         _ first: SyncOperation,
         _ second: SyncOperation
     ) -> SyncOperation? {
-
-        switch (
-            first.operationType,
-            second.operationType
-        ) {
+        switch (first.operationType, second.operationType) {
 
         case (.create, .update):
-            return first
+            return SyncOperation(
+                id: first.id,
+                entityID: first.entityID,
+                entityType: first.entityType,
+                operationType: .create,
+                payload: second.payload,
+                version: first.version,
+                createdAt: first.createdAt,
+                status: first.status,
+                retryCount: first.retryCount
+            )
 
         case (.create, .delete):
             return nil

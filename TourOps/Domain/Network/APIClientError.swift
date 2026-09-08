@@ -11,4 +11,17 @@ enum APIClientError: Error {
     case invalidResponse
     case httpError(statusCode: Int)
     case decodingError(Error)
+
+    var isRetryable: Bool {
+        switch self {
+        case .invalidResponse:
+            return true
+
+        case .httpError(let statusCode):
+            return statusCode >= 500
+
+        case .decodingError:
+            return false
+        }
+    }
 }

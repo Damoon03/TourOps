@@ -127,14 +127,15 @@ struct TourOpsApp: App {
 
 
     var body: some Scene {
-
         WindowGroup {
-
             TeamListView(
                 repository: teamRepository,
                 tourRepository: tourRepository,
                 showRepository: showRepository
             )
+            .task {
+                syncScheduler.scheduleSync()
+            }
         }
         .modelContainer(modelContainer)
     }
