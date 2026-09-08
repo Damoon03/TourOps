@@ -78,6 +78,29 @@ struct SyncRetryPolicyTests {
             nextCount == 1
         )
     }
+    
+    @Test
+    func shouldNotRetryWhenMaximumRetryCountIsZero() {
+        let policy = SyncRetryPolicy(
+            maxRetryCount: 0
+        )
+
+        let operation = SyncOperation(
+            id: UUID(),
+            entityID: UUID(),
+            entityType: .show,
+            operationType: .update,
+            payload: nil,
+            version: 1,
+            createdAt: Date(),
+            status: .pending,
+            retryCount: 0
+        )
+
+        #expect(
+            policy.shouldRetry(operation) == false
+        )
+    }
 
     // MARK: - Helpers
 

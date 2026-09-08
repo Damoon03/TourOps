@@ -32,6 +32,47 @@ struct SyncEngineTests {
         #expect(service.executedOperations.count == 1)
         #expect(repository.deletedOperations.count == 1)
     }
+    
+    @Test
+    func syncKeepsOperationWhenLocalDeleteFails() async throws {
+        let repository = MockSyncOperationRepository()
+        let service = MockSyncService()
+
+        repository.deleteError = TestError.persistenceFailed
+
+        let operation = makeOperation()
+        repository.operations = [operation]
+
+        let engine = makeEngine(
+            repository: repository,
+            service: service
+        )
+
+        await engine.sync()
+
+        #expect(service.executedOperations.count == 1)
+        #expect(repository.deletedOperations.isEmpty)
+
+        #expect(repository.updatedOperations.count == 2)
+
+        let processingOperation =
+            repository.updatedOperations[0]
+
+        let retryOperation =
+            repository.updatedOperations[1]
+
+        #expect(
+            processingOperation.status == .processing
+        )
+
+        #expect(
+            retryOperation.status == .pending
+        )
+
+        #expect(
+            retryOperation.retryCount == 1
+        )
+    }
 
     // MARK: - Retry
 
@@ -157,6 +198,81 @@ struct SyncEngineTests {
             repository.deletedOperations.isEmpty
         )
     }
+    
+    // MARK: - Cancellation
+    
+    @Test
+    func syncDoesNothingWhenTaskIsAlreadyCancelled() async throws {
+        let repository = MockSyncOperationRepository()
+        let service = MockSyncService()
+
+        let operation = makeOperation()
+
+        repository.operations = [operation]
+
+        let engine = makeEngine(
+            repository: repository,
+            service: service
+        )
+
+        let task = Task {
+            await engine.sync()
+        }
+
+        task.cancel()
+
+        await task.value
+
+        #expect(service.executedOperations.isEmpty)
+        #expect(repository.updatedOperations.isEmpty)
+        #expect(repository.deletedOperations.isEmpty)
+    }
+
+    @Test
+    func syncReturnsOperationToPendingWhenCancelled() async throws {
+        let repository = MockSyncOperationRepository()
+        let service = MockSyncService()
+
+        service.error = CancellationError()
+
+        let operation = makeOperation(
+            retryCount: 0
+        )
+
+        repository.operations = [operation]
+
+        let engine = makeEngine(
+            repository: repository,
+            service: service
+        )
+
+        await engine.sync()
+
+        #expect(service.executedOperations.count == 1)
+        #expect(repository.updatedOperations.count == 2)
+
+        let processingOperation =
+            repository.updatedOperations[0]
+
+        let pendingOperation =
+            repository.updatedOperations[1]
+
+        #expect(
+            processingOperation.status == .processing
+        )
+
+        #expect(
+            pendingOperation.status == .pending
+        )
+
+        #expect(
+            pendingOperation.retryCount == 0
+        )
+
+        #expect(
+            repository.deletedOperations.isEmpty
+        )
+    }
 
     // MARK: - Reducer Integration
 
@@ -274,38 +390,44 @@ struct SyncEngineTests {
 @MainActor
 private final class MockSyncOperationRepository:
     SyncOperationRepositoryProtocol {
-
+    
     var operations: [SyncOperation]
-
+    
     var updatedOperations: [SyncOperation] = []
     var deletedOperations: [SyncOperation] = []
-
+    
+    var deleteError: Error?
+    
     init(
         operations: [SyncOperation] = []
     ) {
         self.operations = operations
     }
-
+    
     func fetchPendingOperations()
     async throws -> [SyncOperation] {
         operations
     }
-
+    
     func add(
         _ operation: SyncOperation
     ) async throws {
         operations.append(operation)
     }
-
+    
     func update(
         _ operation: SyncOperation
     ) async throws {
         updatedOperations.append(operation)
     }
-
+    
     func delete(
         _ operation: SyncOperation
     ) async throws {
+        if let deleteError {
+            throw deleteError
+        }
+        
         deletedOperations.append(operation)
     }
 }
@@ -334,4 +456,6 @@ private final class MockSyncService:
 
 private enum TestError: Error {
     case executionFailed
+    case persistenceFailed
+
 }

@@ -103,6 +103,46 @@ struct SyncOperationReducerTests {
 
         #expect(result.isEmpty)
     }
+    
+    @Test
+    func createFollowedByMultipleUpdatesKeepsLatestPayload() {
+        let reducer = SyncOperationReducer()
+
+        let entityID = UUID()
+
+        let create = makeOperation(
+            entityID: entityID,
+            type: .create,
+            version: 1,
+            payload: #"{"name":"Original"}"#
+        )
+
+        let firstUpdate = makeOperation(
+            entityID: entityID,
+            type: .update,
+            version: 2,
+            payload: #"{"name":"First Update"}"#
+        )
+
+        let latestUpdate = makeOperation(
+            entityID: entityID,
+            type: .update,
+            version: 3,
+            payload: #"{"name":"Latest Update"}"#
+        )
+
+        let result = reducer.reduce([
+            create,
+            firstUpdate,
+            latestUpdate
+        ])
+
+        #expect(result.count == 1)
+        #expect(result.first?.operationType == .create)
+        #expect(result.first?.entityID == entityID)
+        #expect(result.first?.version == 1)
+        #expect(result.first?.payload == latestUpdate.payload)
+    }
 
     // MARK: - Update + Delete
 
@@ -142,14 +182,15 @@ struct SyncOperationReducerTests {
         entityID: UUID = UUID(),
         type: SyncOperationType,
         version: Int = 1,
-        createdAt: Date = Date()
+        createdAt: Date = Date(),
+        payload: String? = nil
     ) -> SyncOperation {
         SyncOperation(
             id: UUID(),
             entityID: entityID,
             entityType: .show,
             operationType: type,
-            payload: nil,
+            payload: payload,
             version: version,
             createdAt: createdAt,
             status: .pending,

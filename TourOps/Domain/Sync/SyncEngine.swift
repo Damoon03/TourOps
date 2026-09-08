@@ -30,6 +30,10 @@ final class SyncEngine: SyncEngineProtocol {
     }
 
     func sync() async {
+        guard !Task.isCancelled else {
+            return
+        }
+
         guard !isSyncing else {
             return
         }
@@ -57,7 +61,9 @@ final class SyncEngine: SyncEngineProtocol {
         }
     }
 
-    private func process(_ operation: SyncOperation) async {
+    private func process(
+        _ operation: SyncOperation
+    ) async {
         do {
             var processingOperation = operation
             processingOperation.status = .processing
@@ -72,6 +78,13 @@ final class SyncEngine: SyncEngineProtocol {
 
             try await syncOperationRepository.delete(
                 processingOperation
+            )
+        } catch is CancellationError {
+            var pendingOperation = operation
+            pendingOperation.status = .pending
+
+            try? await syncOperationRepository.update(
+                pendingOperation
             )
         } catch {
             await handleFailure(
