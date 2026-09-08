@@ -63,17 +63,30 @@ struct SwiftDataSyncOperationRepositoryTests {
         let (repository, _) = try makeRepository()
 
         let pending = makeOperation(status: .pending)
-        let processing = makeOperation(status: .processing)
         let failed = makeOperation(status: .failed)
 
         try await repository.add(pending)
-        try await repository.add(processing)
         try await repository.add(failed)
 
         let operations = try await repository.fetchPendingOperations()
 
         #expect(operations.count == 1)
         #expect(operations.first?.id == pending.id)
+    }
+
+    @Test
+    func fetchPendingOperationsRecoversProcessingOperations() async throws {
+        let (repository, _) = try makeRepository()
+
+        let processing = makeOperation(status: .processing)
+
+        try await repository.add(processing)
+
+        let operations = try await repository.fetchPendingOperations()
+
+        #expect(operations.count == 1)
+        #expect(operations.first?.id == processing.id)
+        #expect(operations.first?.status == .pending)
     }
 
     @Test
@@ -138,7 +151,7 @@ struct SwiftDataSyncOperationRepositoryTests {
             entities.first?.version == 2
         )
     }
-    
+
     @Test
     func updateThrowsNotFoundForMissingOperation() async throws {
         let (repository, _) = try makeRepository()
