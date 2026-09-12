@@ -325,7 +325,208 @@ struct SyncEngineTests {
             service.executedOperations.first?.operationType == .create
         )
     }
+    
+    @Test
+    func syncRemovesSupersededOperationsAfterSuccessfulExecution() async throws {
+        let entityID = UUID()
 
+        let firstUpdate = SyncOperation(
+            id: UUID(),
+            entityID: entityID,
+            entityType: .show,
+            operationType: .update,
+            payload: nil,
+            version: 1,
+            createdAt: Date(timeIntervalSince1970: 100),
+            status: .pending,
+            retryCount: 0
+        )
+
+        let secondUpdate = SyncOperation(
+            id: UUID(),
+            entityID: entityID,
+            entityType: .show,
+            operationType: .update,
+            payload: nil,
+            version: 2,
+            createdAt: Date(timeIntervalSince1970: 200),
+            status: .pending,
+            retryCount: 0
+        )
+
+        let latestUpdate = SyncOperation(
+            id: UUID(),
+            entityID: entityID,
+            entityType: .show,
+            operationType: .update,
+            payload: nil,
+            version: 3,
+            createdAt: Date(timeIntervalSince1970: 300),
+            status: .pending,
+            retryCount: 0
+        )
+
+        let repository = MockSyncOperationRepository(
+            operations: [
+                firstUpdate,
+                secondUpdate,
+                latestUpdate
+            ]
+        )
+
+        let service = MockSyncService()
+
+        let engine = makeEngine(
+            repository: repository,
+            service: service
+        )
+
+        await engine.sync()
+
+        #expect(
+            service.executedOperations.count == 1
+        )
+
+        #expect(
+            service.executedOperations.first?.version == 3
+        )
+
+        #expect(
+            repository.operations.isEmpty
+        )
+    }
+    
+    @Test
+    func syncRemovesCreateAndDeleteOperationsWithoutExecution() async throws {
+        let entityID = UUID()
+
+        let create = SyncOperation(
+            id: UUID(),
+            entityID: entityID,
+            entityType: .show,
+            operationType: .create,
+            payload: nil,
+            version: 1,
+            createdAt: Date(timeIntervalSince1970: 100),
+            status: .pending,
+            retryCount: 0
+        )
+
+        let delete = SyncOperation(
+            id: UUID(),
+            entityID: entityID,
+            entityType: .show,
+            operationType: .delete,
+            payload: nil,
+            version: 1,
+            createdAt: Date(timeIntervalSince1970: 200),
+            status: .pending,
+            retryCount: 0
+        )
+
+        let repository = MockSyncOperationRepository(
+            operations: [
+                create,
+                delete
+            ]
+        )
+
+        let service = MockSyncService()
+
+        let engine = makeEngine(
+            repository: repository,
+            service: service
+        )
+
+        await engine.sync()
+
+        #expect(
+            service.executedOperations.isEmpty
+        )
+
+        #expect(
+            repository.deletedOperations.count == 2
+        )
+
+        #expect(
+            repository.operations.isEmpty
+        )
+    }
+
+    @Test
+    func syncCleansUpNoOpOperationsAndExecutesRemainingOperations() async throws {
+        let firstEntityID = UUID()
+        let secondEntityID = UUID()
+
+        let create = SyncOperation(
+            id: UUID(),
+            entityID: firstEntityID,
+            entityType: .show,
+            operationType: .create,
+            payload: nil,
+            version: 1,
+            createdAt: Date(timeIntervalSince1970: 100),
+            status: .pending,
+            retryCount: 0
+        )
+
+        let delete = SyncOperation(
+            id: UUID(),
+            entityID: firstEntityID,
+            entityType: .show,
+            operationType: .delete,
+            payload: nil,
+            version: 1,
+            createdAt: Date(timeIntervalSince1970: 200),
+            status: .pending,
+            retryCount: 0
+        )
+
+        let update = SyncOperation(
+            id: UUID(),
+            entityID: secondEntityID,
+            entityType: .show,
+            operationType: .update,
+            payload: nil,
+            version: 1,
+            createdAt: Date(timeIntervalSince1970: 300),
+            status: .pending,
+            retryCount: 0
+        )
+
+        let repository = MockSyncOperationRepository(
+            operations: [
+                create,
+                delete,
+                update
+            ]
+        )
+
+        let service = MockSyncService()
+
+        let engine = makeEngine(
+            repository: repository,
+            service: service
+        )
+
+        await engine.sync()
+
+        #expect(
+            service.executedOperations.count == 1
+        )
+
+        #expect(
+            service.executedOperations.first?.entityID == secondEntityID
+        )
+
+        #expect(
+            repository.deletedOperations.count == 3
+        )
+
+        #expect(
+            repository.operations.isEmpty
+        )
+    }
     // MARK: - Helpers
 
     private func makeEngine(
@@ -427,8 +628,12 @@ private final class MockSyncOperationRepository:
         if let deleteError {
             throw deleteError
         }
-        
+
         deletedOperations.append(operation)
+
+        operations.removeAll {
+            $0.id == operation.id
+        }
     }
 }
 

@@ -48,21 +48,43 @@ final class SyncEngine: SyncEngineProtocol {
             let pendingOperations =
                 try await syncOperationRepository.fetchPendingOperations()
 
-            let operations =
-                operationReducer.reduce(
-                    pendingOperations
+            let groupedOperations =
+                Dictionary(
+                    grouping: pendingOperations,
+                    by: \.entityID
                 )
 
-            for operation in operations {
-                await process(operation)
+            for (_, entityOperations) in groupedOperations {
+                let reducedOperations =
+                    operationReducer.reduce(
+                        entityOperations
+                    )
+
+                if reducedOperations.isEmpty {
+                    for operation in entityOperations {
+                        try? await syncOperationRepository.delete(
+                            operation
+                        )
+                    }
+
+                    continue
+                }
+
+                for operation in reducedOperations {
+                    await process(
+                        operation,
+                        relatedOperations: entityOperations
+                    )
+                }
             }
         } catch {
             return
         }
     }
-
+    
     private func process(
-        _ operation: SyncOperation
+        _ operation: SyncOperation,
+        relatedOperations: [SyncOperation]
     ) async {
         do {
             var processingOperation = operation
@@ -76,9 +98,11 @@ final class SyncEngine: SyncEngineProtocol {
                 processingOperation
             )
 
-            try await syncOperationRepository.delete(
-                processingOperation
-            )
+            for relatedOperation in relatedOperations {
+                try await syncOperationRepository.delete(
+                    relatedOperation
+                )
+            }
         } catch is CancellationError {
             var pendingOperation = operation
             pendingOperation.status = .pending
