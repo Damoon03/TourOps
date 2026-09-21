@@ -6,6 +6,11 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		CE72B8EC30613DA3001D5196 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = CE72B8EB30613DA3001D5196 /* Supabase */; };
+		CE72B8F130613EFE001D5196 /* Secrets.xcconfig in Resources */ = {isa = PBXBuildFile; fileRef = CE72B8F030613EFE001D5196 /* Secrets.xcconfig */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		CE366DE63039C7FD00167ACB /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -27,6 +32,7 @@
 		CE366DD63039C7FC00167ACB /* TourOps.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TourOps.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		CE366DE53039C7FD00167ACB /* TourOpsTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TourOpsTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		CE366DEF3039C7FD00167ACB /* TourOpsUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TourOpsUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		CE72B8F030613EFE001D5196 /* Secrets.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Secrets.xcconfig; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -69,11 +75,21 @@
 			);
 			target = CE366DEE3039C7FD00167ACB /* TourOpsUITests */;
 		};
+		CE72B8FD3061435D001D5196 /* Exceptions for "TourOps" folder in "TourOps" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = CE366DD53039C7FC00167ACB /* TourOps */;
+		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		CE366DD83039C7FC00167ACB /* TourOps */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				CE72B8FD3061435D001D5196 /* Exceptions for "TourOps" folder in "TourOps" target */,
+			);
 			path = TourOps;
 			sourceTree = "<group>";
 		};
@@ -101,6 +117,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				CE72B8EC30613DA3001D5196 /* Supabase in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -124,6 +141,7 @@
 		CE366DCD3039C7FC00167ACB = {
 			isa = PBXGroup;
 			children = (
+				CE72B8F030613EFE001D5196 /* Secrets.xcconfig */,
 				CE366DD83039C7FC00167ACB /* TourOps */,
 				CE366DD73039C7FC00167ACB /* Products */,
 				CE366E203039F77700167ACB /* TourOpsTests */,
@@ -162,6 +180,7 @@
 			);
 			name = TourOps;
 			packageProductDependencies = (
+				CE72B8EB30613DA3001D5196 /* Supabase */,
 			);
 			productName = TourOps;
 			productReference = CE366DD63039C7FC00167ACB /* TourOps.app */;
@@ -239,6 +258,9 @@
 			);
 			mainGroup = CE366DCD3039C7FC00167ACB;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				CE72B8EA30613DA3001D5196 /* XCRemoteSwiftPackageReference "supabase-swift" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = CE366DD73039C7FC00167ACB /* Products */;
 			projectDirPath = "";
@@ -256,6 +278,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				CE72B8F130613EFE001D5196 /* Secrets.xcconfig in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -315,6 +338,7 @@
 /* Begin XCBuildConfiguration section */
 		CE366DF73039C7FD00167ACB /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = CE72B8F030613EFE001D5196 /* Secrets.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
@@ -372,6 +396,7 @@
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = iphoneos;
+				SUPABASE_URL = "\"https://cfkbkkgntxpfchfuewqj.supabase.co\"";
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 			};
@@ -379,6 +404,7 @@
 		};
 		CE366DF83039C7FD00167ACB /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = CE72B8F030613EFE001D5196 /* Secrets.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
@@ -429,6 +455,7 @@
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				SDKROOT = iphoneos;
+				SUPABASE_URL = "\"https://cfkbkkgntxpfchfuewqj.supabase.co\"";
 				SWIFT_COMPILATION_MODE = wholemodule;
 				VALIDATE_PRODUCT = YES;
 			};
@@ -444,6 +471,7 @@
 				DEVELOPMENT_TEAM = ZMNRKKR453;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = TourOps/Info.plist;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -476,6 +504,7 @@
 				DEVELOPMENT_TEAM = ZMNRKKR453;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = TourOps/Info.plist;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -622,6 +651,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		CE72B8EA30613DA3001D5196 /* XCRemoteSwiftPackageReference "supabase-swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/supabase-community/supabase-swift.git?utm_source=chatgpt.com";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.5.1;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		CE72B8EB30613DA3001D5196 /* Supabase */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = CE72B8EA30613DA3001D5196 /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = Supabase;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = CE366DCE3039C7FC00167ACB /* Project object */;
 }
