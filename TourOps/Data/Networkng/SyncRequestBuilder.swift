@@ -40,6 +40,16 @@ final class SyncRequestBuilder: SyncRequestBuilderProtocol {
         )
 
         request.setValue(
+            TourOpsSupabaseClient.shared.publishableKey,
+            forHTTPHeaderField: "apikey"
+        )
+
+        request.setValue(
+            "return=representation",
+            forHTTPHeaderField: "Prefer"
+        )
+
+        request.setValue(
             String(operation.version),
             forHTTPHeaderField: "If-Match-Version"
         )

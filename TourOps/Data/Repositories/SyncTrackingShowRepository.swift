@@ -14,15 +14,18 @@ final class SyncTrackingShowRepository: ShowRepositoryProtocol {
     private let showRepository: SwiftDataShowRepository
     private let syncOperationRepository: SwiftDataSyncOperationRepository
     private let modelContext: ModelContext
+    private let syncScheduler: SyncSchedulerProtocol
 
     init(
         showRepository: SwiftDataShowRepository,
         syncOperationRepository: SwiftDataSyncOperationRepository,
-        modelContext: ModelContext
+        modelContext: ModelContext,
+        syncScheduler: SyncSchedulerProtocol
     ) {
         self.showRepository = showRepository
         self.syncOperationRepository = syncOperationRepository
         self.modelContext = modelContext
+        self.syncScheduler = syncScheduler
     }
 
     // MARK: - Fetch
@@ -39,6 +42,7 @@ final class SyncTrackingShowRepository: ShowRepositoryProtocol {
 
     func createShow(_ show: Show) async throws {
         try showRepository.stageCreateShow(show)
+
         let payloadData = try JSONEncoder().encode(
             ShowMapper.toDTO(show)
         )
@@ -62,6 +66,8 @@ final class SyncTrackingShowRepository: ShowRepositoryProtocol {
 
         try syncOperationRepository.stageAdd(operation)
         try modelContext.save()
+
+        syncScheduler.scheduleSync()
     }
 
     // MARK: - Update
@@ -92,8 +98,10 @@ final class SyncTrackingShowRepository: ShowRepositoryProtocol {
 
         try syncOperationRepository.stageAdd(operation)
         try modelContext.save()
+
+        syncScheduler.scheduleSync()
     }
-    
+
     // MARK: - Delete
 
     func deleteShow(id: UUID) async throws {
@@ -115,5 +123,7 @@ final class SyncTrackingShowRepository: ShowRepositoryProtocol {
 
         try syncOperationRepository.stageAdd(operation)
         try modelContext.save()
+
+        syncScheduler.scheduleSync()
     }
 }

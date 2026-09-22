@@ -13,7 +13,9 @@ final class TourOpsSupabaseClient {
     static let shared = TourOpsSupabaseClient()
 
     let client: SupabaseClient
-
+    let baseURL: URL
+    let publishableKey: String
+    
     private init() {
         guard
             let urlString = Bundle.main.object(
@@ -27,6 +29,9 @@ final class TourOpsSupabaseClient {
             fatalError("Supabase configuration is missing.")
         }
 
+        self.baseURL = url
+        self.publishableKey = key
+        
         client = SupabaseClient(
             supabaseURL: url,
             supabaseKey: key

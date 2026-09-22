@@ -14,15 +14,18 @@ final class SyncTrackingTeamRepository: TeamRepositoryProtocol {
     private let teamRepository: SwiftDataTeamRepository
     private let syncOperationRepository: SwiftDataSyncOperationRepository
     private let modelContext: ModelContext
+    private let syncScheduler: SyncSchedulerProtocol
 
     init(
         teamRepository: SwiftDataTeamRepository,
         syncOperationRepository: SwiftDataSyncOperationRepository,
-        modelContext: ModelContext
+        modelContext: ModelContext,
+        syncScheduler: SyncSchedulerProtocol
     ) {
         self.teamRepository = teamRepository
         self.syncOperationRepository = syncOperationRepository
         self.modelContext = modelContext
+        self.syncScheduler = syncScheduler
     }
 
     // MARK: - Fetch
@@ -63,6 +66,8 @@ final class SyncTrackingTeamRepository: TeamRepositoryProtocol {
 
         try syncOperationRepository.stageAdd(operation)
         try modelContext.save()
+
+        syncScheduler.scheduleSync()
     }
 
     // MARK: - Update
@@ -93,6 +98,8 @@ final class SyncTrackingTeamRepository: TeamRepositoryProtocol {
 
         try syncOperationRepository.stageAdd(operation)
         try modelContext.save()
+
+        syncScheduler.scheduleSync()
     }
 
     // MARK: - Delete
@@ -116,5 +123,7 @@ final class SyncTrackingTeamRepository: TeamRepositoryProtocol {
 
         try syncOperationRepository.stageAdd(operation)
         try modelContext.save()
+
+        syncScheduler.scheduleSync()
     }
 }
