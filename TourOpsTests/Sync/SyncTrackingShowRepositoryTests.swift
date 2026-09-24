@@ -17,7 +17,8 @@ struct SyncTrackingShowRepositoryTests {
 
     @Test
     func createShowPersistsShowAndSyncOperation() async throws {
-        let (repository, context) = try makeRepository()
+
+        let (repository, modelContext) = try makeRepository()
         let show = makeShow()
 
         try await repository.createShow(show)
@@ -25,8 +26,8 @@ struct SyncTrackingShowRepositoryTests {
         let showDescriptor = FetchDescriptor<ShowEntity>()
         let operationDescriptor = FetchDescriptor<SyncOperationEntity>()
 
-        let shows = try context.fetch(showDescriptor)
-        let operations = try context.fetch(operationDescriptor)
+        let shows = try modelContext.fetch(showDescriptor)
+        let operations = try modelContext.fetch(operationDescriptor)
 
         #expect(shows.count == 1)
         #expect(shows.first?.id == show.id)
@@ -63,8 +64,8 @@ struct SyncTrackingShowRepositoryTests {
         let payloadData = try #require(
             payload.data(using: .utf8)
         )
-
-        let dto = try JSONDecoder().decode(
+        
+        let dto = try JSONCoding.decoder.decode(
             ShowDTO.self,
             from: payloadData
         )
@@ -79,7 +80,8 @@ struct SyncTrackingShowRepositoryTests {
 
     @Test
     func createShowThrowsDuplicateForExistingShow() async throws {
-        let (repository, context) = try makeRepository()
+
+        let (repository, modelContext) = try makeRepository()
         let show = makeShow()
 
         try await repository.createShow(show)
@@ -91,8 +93,8 @@ struct SyncTrackingShowRepositoryTests {
         let showDescriptor = FetchDescriptor<ShowEntity>()
         let operationDescriptor = FetchDescriptor<SyncOperationEntity>()
 
-        let shows = try context.fetch(showDescriptor)
-        let operations = try context.fetch(operationDescriptor)
+        let shows = try modelContext.fetch(showDescriptor)
+        let operations = try modelContext.fetch(operationDescriptor)
 
         #expect(shows.count == 1)
         #expect(operations.count == 1)
@@ -102,7 +104,8 @@ struct SyncTrackingShowRepositoryTests {
 
     @Test
     func updateShowPersistsShowChangesAndSyncOperation() async throws {
-        let (repository, context) = try makeRepository()
+
+        let (repository, modelContext) = try makeRepository()
         let show = makeShow()
 
         try await repository.createShow(show)
@@ -123,8 +126,8 @@ struct SyncTrackingShowRepositoryTests {
         let showDescriptor = FetchDescriptor<ShowEntity>()
         let operationDescriptor = FetchDescriptor<SyncOperationEntity>()
 
-        let shows = try context.fetch(showDescriptor)
-        let operations = try context.fetch(operationDescriptor)
+        let shows = try modelContext.fetch(showDescriptor)
+        let operations = try modelContext.fetch(operationDescriptor)
 
         #expect(shows.count == 1)
         #expect(shows.first?.name == "Updated Show")
@@ -171,7 +174,7 @@ struct SyncTrackingShowRepositoryTests {
             payload.data(using: .utf8)
         )
 
-        let dto = try JSONDecoder().decode(
+        let dto = try JSONCoding.decoder.decode(
             ShowDTO.self,
             from: payloadData
         )
@@ -186,7 +189,8 @@ struct SyncTrackingShowRepositoryTests {
 
     @Test
     func updateShowThrowsNotFoundForMissingShow() async throws {
-        let (repository, context) = try makeRepository()
+
+        let (repository, modelContext) = try makeRepository()
         let show = makeShow()
 
         await #expect(throws: RepositoryError.notFound) {
@@ -194,7 +198,10 @@ struct SyncTrackingShowRepositoryTests {
         }
 
         let operationDescriptor = FetchDescriptor<SyncOperationEntity>()
-        let operations = try context.fetch(operationDescriptor)
+
+        let operations = try modelContext.fetch(
+            operationDescriptor
+        )
 
         #expect(operations.isEmpty)
     }
@@ -203,7 +210,8 @@ struct SyncTrackingShowRepositoryTests {
 
     @Test
     func deleteShowRemovesShowAndCreatesSyncOperation() async throws {
-        let (repository, context) = try makeRepository()
+
+        let (repository, modelContext) = try makeRepository()
         let show = makeShow()
 
         try await repository.createShow(show)
@@ -212,8 +220,8 @@ struct SyncTrackingShowRepositoryTests {
         let showDescriptor = FetchDescriptor<ShowEntity>()
         let operationDescriptor = FetchDescriptor<SyncOperationEntity>()
 
-        let shows = try context.fetch(showDescriptor)
-        let operations = try context.fetch(operationDescriptor)
+        let shows = try modelContext.fetch(showDescriptor)
+        let operations = try modelContext.fetch(operationDescriptor)
 
         #expect(shows.isEmpty)
         #expect(operations.count == 2)
@@ -249,7 +257,8 @@ struct SyncTrackingShowRepositoryTests {
 
     @Test
     func deleteShowThrowsNotFoundForMissingShow() async throws {
-        let (repository, context) = try makeRepository()
+
+        let (repository, modelContext) = try makeRepository()
         let showID = UUID()
 
         await #expect(throws: RepositoryError.notFound) {
@@ -257,7 +266,10 @@ struct SyncTrackingShowRepositoryTests {
         }
 
         let operationDescriptor = FetchDescriptor<SyncOperationEntity>()
-        let operations = try context.fetch(operationDescriptor)
+
+        let operations = try modelContext.fetch(
+            operationDescriptor
+        )
 
         #expect(operations.isEmpty)
     }
@@ -266,8 +278,9 @@ struct SyncTrackingShowRepositoryTests {
 
     private func makeRepository() throws -> (
         repository: SyncTrackingShowRepository,
-        context: ModelContext
+        modelContext: ModelContext
     ) {
+
         let schema = Schema([
             ShowEntity.self,
             SyncOperationEntity.self
@@ -282,30 +295,34 @@ struct SyncTrackingShowRepositoryTests {
             configurations: configuration
         )
 
-        let context = ModelContext(container)
+        let modelContext = ModelContext(container)
 
         let showRepository = SwiftDataShowRepository(
-            modelContext: context
+            modelContext: modelContext
         )
 
         let syncOperationRepository =
             SwiftDataSyncOperationRepository(
-                modelContext: context
+                modelContext: modelContext
             )
+
+        let syncScheduler = MockSyncScheduler()
 
         let repository = SyncTrackingShowRepository(
             showRepository: showRepository,
             syncOperationRepository: syncOperationRepository,
-            modelContext: context
+            modelContext: modelContext,
+            syncScheduler: syncScheduler
         )
 
         return (
             repository,
-            context
+            modelContext
         )
     }
 
     private func makeShow() -> Show {
+
         Show(
             id: UUID(),
             tourID: UUID(),

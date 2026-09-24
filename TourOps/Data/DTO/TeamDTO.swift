@@ -16,4 +16,14 @@ struct TeamDTO: Codable {
     let city: String
     let createdAt: Date
     let version: Int
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case name
+        case genre
+        case country
+        case city
+        case createdAt = "created_at"
+        case version
+    }
 }

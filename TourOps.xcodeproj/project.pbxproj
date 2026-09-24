@@ -46,6 +46,7 @@
 				Repositories/SwiftDataTeamRepositoryTests.swift,
 				Repositories/SwiftDataTourRepositoryTests.swift,
 				Sync/DefaultSyncServiceTests.swift,
+				Sync/MockSyncScheduler.swift,
 				Sync/SyncEngineTests.swift,
 				Sync/SyncOperationReducerTests.swift,
 				Sync/SyncRetryPolicyTests.swift,

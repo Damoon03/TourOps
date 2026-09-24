@@ -43,7 +43,7 @@ final class SyncTrackingTeamRepository: TeamRepositoryProtocol {
     func createTeam(_ team: Team) async throws {
         try teamRepository.stageCreateTeam(team)
 
-        let payloadData = try JSONEncoder().encode(
+        let payloadData = try JSONCoding.encoder.encode(
             TeamMapper.toDTO(team)
         )
 
@@ -75,7 +75,7 @@ final class SyncTrackingTeamRepository: TeamRepositoryProtocol {
     func updateTeam(_ team: Team) async throws {
         try teamRepository.stageUpdateTeam(team)
 
-        let payloadData = try JSONEncoder().encode(
+        let payloadData = try JSONCoding.encoder.encode(
             TeamMapper.toDTO(team)
         )
 

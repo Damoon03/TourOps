@@ -43,7 +43,7 @@ struct SyncTrackingTeamRepositoryTests {
             payload.data(using: .utf8)
         )
 
-        let dto = try JSONDecoder().decode(
+        let dto = try JSONCoding.decoder.decode(
             TeamDTO.self,
             from: payloadData
         )
@@ -109,7 +109,7 @@ struct SyncTrackingTeamRepositoryTests {
             payload.data(using: .utf8)
         )
 
-        let dto = try JSONDecoder().decode(
+        let dto = try JSONCoding.decoder.decode(
             TeamDTO.self,
             from: payloadData
         )
@@ -191,10 +191,13 @@ struct SyncTrackingTeamRepositoryTests {
             modelContext: modelContext
         )
 
+        let syncScheduler = MockSyncScheduler()
+
         let repository = SyncTrackingTeamRepository(
             teamRepository: teamRepository,
             syncOperationRepository: syncOperationRepository,
-            modelContext: modelContext
+            modelContext: modelContext,
+            syncScheduler: syncScheduler
         )
 
         return (

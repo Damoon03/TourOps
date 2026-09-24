@@ -43,10 +43,11 @@ struct SyncTrackingTourRepositoryTests {
             payload.data(using: .utf8)
         )
 
-        let dto = try JSONDecoder().decode(
+        let dto = try JSONCoding.decoder.decode(
             TourDTO.self,
             from: payloadData
         )
+        
 
         #expect(dto.id == tour.id)
         #expect(dto.teamID == tour.teamID)
@@ -109,7 +110,7 @@ struct SyncTrackingTourRepositoryTests {
             payload.data(using: .utf8)
         )
 
-        let dto = try JSONDecoder().decode(
+        let dto = try JSONCoding.decoder.decode(
             TourDTO.self,
             from: payloadData
         )
@@ -191,10 +192,13 @@ struct SyncTrackingTourRepositoryTests {
             modelContext: modelContext
         )
 
+        let syncScheduler = MockSyncScheduler()
+
         let repository = SyncTrackingTourRepository(
             tourRepository: tourRepository,
             syncOperationRepository: syncOperationRepository,
-            modelContext: modelContext
+            modelContext: modelContext,
+            syncScheduler: syncScheduler
         )
 
         return (

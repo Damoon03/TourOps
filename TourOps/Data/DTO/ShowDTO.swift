@@ -16,5 +16,16 @@ struct ShowDTO: Codable {
     let city: String
     let date: Date
     let createdAt: Date
-    var version: Int
+    let version: Int
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case tourID = "tour_id"
+        case name
+        case venue
+        case city
+        case date
+        case createdAt = "created_at"
+        case version
+    }
 }

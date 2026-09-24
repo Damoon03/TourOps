@@ -18,7 +18,9 @@ struct TourOpsApp: App {
     private let syncScheduler: SyncScheduler
 
     init() {
+
         do {
+
             let schema = Schema([
                 TeamEntity.self,
                 TourEntity.self,
@@ -29,6 +31,7 @@ struct TourOpsApp: App {
             let container = try ModelContainer(
                 for: schema
             )
+
             self.modelContainer = container
 
             let modelContext = container.mainContext
@@ -107,6 +110,7 @@ struct TourOpsApp: App {
                 )
 
         } catch {
+
             fatalError(
                 "Failed to create ModelContainer: \(error)"
             )
@@ -114,36 +118,15 @@ struct TourOpsApp: App {
     }
 
     var body: some Scene {
+
         WindowGroup {
+
             TeamListView(
                 repository: teamRepository,
                 tourRepository: tourRepository,
                 showRepository: showRepository
             )
-            .task {
-                let authService = SupabaseAuthService()
-
-                do {
-                    try await authService.signIn(
-                        email: "test1@gmail.com",
-                        password: "rinmep-kafpAz-dixra8"
-                    )
-
-                    let token = try await authService.accessToken()
-
-                    print("Supabase authentication succeeded.")
-                    print(
-                        "Access token received: \(token.isEmpty == false)"
-                    )
-
-                    syncScheduler.scheduleSync()
-
-                } catch {
-                    print("Authentication failed:", error)
-                }
-            }
         }
         .modelContainer(modelContainer)
     }
 }
-

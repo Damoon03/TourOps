@@ -43,7 +43,7 @@ final class SyncTrackingTourRepository: TourRepositoryProtocol {
     func createTour(_ tour: Tour) async throws {
         try tourRepository.stageCreateTour(tour)
 
-        let payloadData = try JSONEncoder().encode(
+        let payloadData = try JSONCoding.encoder.encode(
             TourMapper.toDTO(tour)
         )
 
@@ -51,7 +51,7 @@ final class SyncTrackingTourRepository: TourRepositoryProtocol {
             data: payloadData,
             encoding: .utf8
         )
-
+        
         let operation = SyncOperation(
             id: UUID(),
             entityID: tour.id,
@@ -75,7 +75,7 @@ final class SyncTrackingTourRepository: TourRepositoryProtocol {
     func updateTour(_ tour: Tour) async throws {
         try tourRepository.stageUpdateTour(tour)
 
-        let payloadData = try JSONEncoder().encode(
+        let payloadData = try JSONCoding.encoder.encode(
             TourMapper.toDTO(tour)
         )
 

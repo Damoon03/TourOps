@@ -43,7 +43,7 @@ final class SyncTrackingShowRepository: ShowRepositoryProtocol {
     func createShow(_ show: Show) async throws {
         try showRepository.stageCreateShow(show)
 
-        let payloadData = try JSONEncoder().encode(
+        let payloadData = try JSONCoding.encoder.encode(
             ShowMapper.toDTO(show)
         )
 
@@ -75,7 +75,7 @@ final class SyncTrackingShowRepository: ShowRepositoryProtocol {
     func updateShow(_ show: Show) async throws {
         try showRepository.stageUpdateShow(show)
 
-        let payloadData = try JSONEncoder().encode(
+        let payloadData = try JSONCoding.encoder.encode(
             ShowMapper.toDTO(show)
         )
 
