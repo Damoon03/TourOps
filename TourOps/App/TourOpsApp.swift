@@ -16,6 +16,7 @@ struct TourOpsApp: App {
     private let tourRepository: SyncTrackingTourRepository
     private let showRepository: SyncTrackingShowRepository
     private let syncScheduler: SyncScheduler
+    private let authSessionController: AuthSessionController
 
     init() {
 
@@ -69,6 +70,11 @@ struct TourOpsApp: App {
             )
 
             self.syncScheduler = syncScheduler
+            
+            let authSessionController = AuthSessionController()
+
+            self.authSessionController = authSessionController
+
 
             let teamRepository =
                 SwiftDataTeamRepository(
@@ -121,11 +127,26 @@ struct TourOpsApp: App {
 
         WindowGroup {
 
-            TeamListView(
-                repository: teamRepository,
-                tourRepository: tourRepository,
-                showRepository: showRepository
-            )
+            Group {
+                switch authSessionController.state {
+
+                case .loading:
+                    ProgressView()
+
+                case .signedOut:
+                    LoginView()
+
+                case .signedIn:
+                    TeamListView(
+                        repository: teamRepository,
+                        tourRepository: tourRepository,
+                        showRepository: showRepository
+                    )
+                }
+            }
+            .task {
+                await authSessionController.start()
+            }
         }
         .modelContainer(modelContainer)
     }
