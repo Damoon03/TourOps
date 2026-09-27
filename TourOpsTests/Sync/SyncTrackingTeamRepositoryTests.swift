@@ -17,13 +17,22 @@ struct SyncTrackingTeamRepositoryTests {
 
     @Test
     func createTeamPersistsTeamAndSyncOperation() async throws {
-        let (repository, syncOperationRepository) = try makeRepository()
+
+        let (repository, syncOperationRepository, syncScheduler) =
+            try makeRepository()
+
         let team = makeTeam()
 
         try await repository.createTeam(team)
 
-        let persistedTeam = try await repository.fetchTeam(id: team.id)
-        let operations = try await syncOperationRepository.fetchPendingOperations()
+        #expect(syncScheduler.scheduleSyncCallCount == 1)
+
+        let persistedTeam = try await repository.fetchTeam(
+            id: team.id
+        )
+
+        let operations = try await syncOperationRepository
+            .fetchPendingOperations()
 
         #expect(persistedTeam == team)
         #expect(operations.count == 1)
@@ -61,7 +70,10 @@ struct SyncTrackingTeamRepositoryTests {
 
     @Test
     func updateTeamPersistsTeamAndCreatesSyncOperation() async throws {
-        let (repository, syncOperationRepository) = try makeRepository()
+
+        let (repository, syncOperationRepository, syncScheduler) =
+            try makeRepository()
+
         let team = makeTeam()
 
         try await repository.createTeam(team)
@@ -78,8 +90,14 @@ struct SyncTrackingTeamRepositoryTests {
 
         try await repository.updateTeam(updatedTeam)
 
-        let persistedTeam = try await repository.fetchTeam(id: team.id)
-        let operations = try await syncOperationRepository.fetchPendingOperations()
+        #expect(syncScheduler.scheduleSyncCallCount == 2)
+
+        let persistedTeam = try await repository.fetchTeam(
+            id: team.id
+        )
+
+        let operations = try await syncOperationRepository
+            .fetchPendingOperations()
 
         #expect(persistedTeam.name == "Updated Team")
         #expect(persistedTeam.version == 3)
@@ -127,17 +145,24 @@ struct SyncTrackingTeamRepositoryTests {
 
     @Test
     func deleteTeamDeletesTeamAndCreatesSyncOperation() async throws {
-        let (repository, syncOperationRepository) = try makeRepository()
+
+        let (repository, syncOperationRepository, syncScheduler) =
+            try makeRepository()
+
         let team = makeTeam()
 
         try await repository.createTeam(team)
+
         try await repository.deleteTeam(id: team.id)
+
+        #expect(syncScheduler.scheduleSyncCallCount == 2)
 
         await #expect(throws: RepositoryError.notFound) {
             try await repository.fetchTeam(id: team.id)
         }
 
-        let operations = try await syncOperationRepository.fetchPendingOperations()
+        let operations = try await syncOperationRepository
+            .fetchPendingOperations()
 
         #expect(operations.count == 2)
 
@@ -165,8 +190,10 @@ struct SyncTrackingTeamRepositoryTests {
 
     private func makeRepository() throws -> (
         repository: SyncTrackingTeamRepository,
-        syncOperationRepository: SwiftDataSyncOperationRepository
+        syncOperationRepository: SwiftDataSyncOperationRepository,
+        syncScheduler: MockSyncScheduler
     ) {
+
         let schema = Schema([
             TeamEntity.self,
             SyncOperationEntity.self
@@ -187,9 +214,10 @@ struct SyncTrackingTeamRepositoryTests {
             modelContext: modelContext
         )
 
-        let syncOperationRepository = SwiftDataSyncOperationRepository(
-            modelContext: modelContext
-        )
+        let syncOperationRepository =
+            SwiftDataSyncOperationRepository(
+                modelContext: modelContext
+            )
 
         let syncScheduler = MockSyncScheduler()
 
@@ -202,11 +230,13 @@ struct SyncTrackingTeamRepositoryTests {
 
         return (
             repository,
-            syncOperationRepository
+            syncOperationRepository,
+            syncScheduler
         )
     }
 
     private func makeTeam() -> Team {
+
         Team(
             id: UUID(),
             name: "Test Team",

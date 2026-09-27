@@ -17,13 +17,22 @@ struct SyncTrackingTourRepositoryTests {
 
     @Test
     func createTourPersistsTourAndSyncOperation() async throws {
-        let (repository, syncOperationRepository) = try makeRepository()
+
+        let (repository, syncOperationRepository, syncScheduler) =
+            try makeRepository()
+
         let tour = makeTour()
 
         try await repository.createTour(tour)
 
-        let persistedTour = try await repository.fetchTour(id: tour.id)
-        let operations = try await syncOperationRepository.fetchPendingOperations()
+        #expect(syncScheduler.scheduleSyncCallCount == 1)
+
+        let persistedTour = try await repository.fetchTour(
+            id: tour.id
+        )
+
+        let operations = try await syncOperationRepository
+            .fetchPendingOperations()
 
         #expect(persistedTour == tour)
         #expect(operations.count == 1)
@@ -47,7 +56,6 @@ struct SyncTrackingTourRepositoryTests {
             TourDTO.self,
             from: payloadData
         )
-        
 
         #expect(dto.id == tour.id)
         #expect(dto.teamID == tour.teamID)
@@ -62,7 +70,10 @@ struct SyncTrackingTourRepositoryTests {
 
     @Test
     func updateTourPersistsTourAndCreatesSyncOperation() async throws {
-        let (repository, syncOperationRepository) = try makeRepository()
+
+        let (repository, syncOperationRepository, syncScheduler) =
+            try makeRepository()
+
         let tour = makeTour()
 
         try await repository.createTour(tour)
@@ -79,8 +90,14 @@ struct SyncTrackingTourRepositoryTests {
 
         try await repository.updateTour(updatedTour)
 
-        let persistedTour = try await repository.fetchTour(id: tour.id)
-        let operations = try await syncOperationRepository.fetchPendingOperations()
+        #expect(syncScheduler.scheduleSyncCallCount == 2)
+
+        let persistedTour = try await repository.fetchTour(
+            id: tour.id
+        )
+
+        let operations = try await syncOperationRepository
+            .fetchPendingOperations()
 
         #expect(persistedTour.name == "Updated Tour")
         #expect(persistedTour.version == 3)
@@ -128,17 +145,24 @@ struct SyncTrackingTourRepositoryTests {
 
     @Test
     func deleteTourDeletesTourAndCreatesSyncOperation() async throws {
-        let (repository, syncOperationRepository) = try makeRepository()
+
+        let (repository, syncOperationRepository, syncScheduler) =
+            try makeRepository()
+
         let tour = makeTour()
 
         try await repository.createTour(tour)
+
         try await repository.deleteTour(id: tour.id)
+
+        #expect(syncScheduler.scheduleSyncCallCount == 2)
 
         await #expect(throws: RepositoryError.notFound) {
             try await repository.fetchTour(id: tour.id)
         }
 
-        let operations = try await syncOperationRepository.fetchPendingOperations()
+        let operations = try await syncOperationRepository
+            .fetchPendingOperations()
 
         #expect(operations.count == 2)
 
@@ -166,8 +190,10 @@ struct SyncTrackingTourRepositoryTests {
 
     private func makeRepository() throws -> (
         repository: SyncTrackingTourRepository,
-        syncOperationRepository: SwiftDataSyncOperationRepository
+        syncOperationRepository: SwiftDataSyncOperationRepository,
+        syncScheduler: MockSyncScheduler
     ) {
+
         let schema = Schema([
             TourEntity.self,
             SyncOperationEntity.self
@@ -188,9 +214,10 @@ struct SyncTrackingTourRepositoryTests {
             modelContext: modelContext
         )
 
-        let syncOperationRepository = SwiftDataSyncOperationRepository(
-            modelContext: modelContext
-        )
+        let syncOperationRepository =
+            SwiftDataSyncOperationRepository(
+                modelContext: modelContext
+            )
 
         let syncScheduler = MockSyncScheduler()
 
@@ -203,11 +230,13 @@ struct SyncTrackingTourRepositoryTests {
 
         return (
             repository,
-            syncOperationRepository
+            syncOperationRepository,
+            syncScheduler
         )
     }
 
     private func makeTour() -> Tour {
+
         Tour(
             id: UUID(),
             teamID: UUID(),

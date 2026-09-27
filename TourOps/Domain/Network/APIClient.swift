@@ -32,7 +32,7 @@ final class APIClient: APIClientProtocol {
         }
 
         do {
-            return try JSONDecoder().decode(
+            return try JSONCoding.decoder.decode(
                 Response.self,
                 from: data
             )

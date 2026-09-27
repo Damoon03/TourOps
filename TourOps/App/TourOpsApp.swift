@@ -10,52 +10,52 @@ import SwiftData
 
 @main
 struct TourOpsApp: App {
-
+    
     private let modelContainer: ModelContainer
     private let teamRepository: SyncTrackingTeamRepository
     private let tourRepository: SyncTrackingTourRepository
     private let showRepository: SyncTrackingShowRepository
     private let syncScheduler: SyncScheduler
     private let authSessionController: AuthSessionController
-
+    
     init() {
-
+        
         do {
-
+            
             let schema = Schema([
                 TeamEntity.self,
                 TourEntity.self,
                 ShowEntity.self,
                 SyncOperationEntity.self
             ])
-
+            
             let container = try ModelContainer(
                 for: schema
             )
-
+            
             self.modelContainer = container
-
+            
             let modelContext = container.mainContext
-
+            
             let syncOperationRepository =
-                SwiftDataSyncOperationRepository(
-                    modelContext: modelContext
-                )
-
+            SwiftDataSyncOperationRepository(
+                modelContext: modelContext
+            )
+            
             let apiClient = APIClient()
-
+            
             let requestBuilder = SyncRequestBuilder(
                 baseURL: TourOpsSupabaseClient.shared.baseURL
             )
-
+            
             let authService = SupabaseAuthService()
-
+            
             let syncService = SupabaseSyncService(
                 apiClient: apiClient,
                 requestBuilder: requestBuilder,
                 authService: authService
             )
-
+            
             let syncEngine = SyncEngine(
                 syncOperationRepository: syncOperationRepository,
                 syncService: syncService,
@@ -64,78 +64,78 @@ struct TourOpsApp: App {
                 ),
                 operationReducer: SyncOperationReducer()
             )
-
+            
             let syncScheduler = SyncScheduler(
                 syncEngine: syncEngine
             )
-
+            
             self.syncScheduler = syncScheduler
             
             let authSessionController = AuthSessionController()
-
+            
             self.authSessionController = authSessionController
-
-
+            
+            
             let teamRepository =
-                SwiftDataTeamRepository(
-                    modelContext: modelContext
-                )
-
+            SwiftDataTeamRepository(
+                modelContext: modelContext
+            )
+            
             let tourRepository =
-                SwiftDataTourRepository(
-                    modelContext: modelContext
-                )
-
+            SwiftDataTourRepository(
+                modelContext: modelContext
+            )
+            
             let showRepository =
-                SwiftDataShowRepository(
-                    modelContext: modelContext
-                )
-
+            SwiftDataShowRepository(
+                modelContext: modelContext
+            )
+            
             self.teamRepository =
-                SyncTrackingTeamRepository(
-                    teamRepository: teamRepository,
-                    syncOperationRepository: syncOperationRepository,
-                    modelContext: modelContext,
-                    syncScheduler: syncScheduler
-                )
-
+            SyncTrackingTeamRepository(
+                teamRepository: teamRepository,
+                syncOperationRepository: syncOperationRepository,
+                modelContext: modelContext,
+                syncScheduler: syncScheduler
+            )
+            
             self.tourRepository =
-                SyncTrackingTourRepository(
-                    tourRepository: tourRepository,
-                    syncOperationRepository: syncOperationRepository,
-                    modelContext: modelContext,
-                    syncScheduler: syncScheduler
-                )
-
+            SyncTrackingTourRepository(
+                tourRepository: tourRepository,
+                syncOperationRepository: syncOperationRepository,
+                modelContext: modelContext,
+                syncScheduler: syncScheduler
+            )
+            
             self.showRepository =
-                SyncTrackingShowRepository(
-                    showRepository: showRepository,
-                    syncOperationRepository: syncOperationRepository,
-                    modelContext: modelContext,
-                    syncScheduler: syncScheduler
-                )
-
+            SyncTrackingShowRepository(
+                showRepository: showRepository,
+                syncOperationRepository: syncOperationRepository,
+                modelContext: modelContext,
+                syncScheduler: syncScheduler
+            )
+            
         } catch {
-
+            
             fatalError(
                 "Failed to create ModelContainer: \(error)"
             )
         }
     }
-
+    
     var body: some Scene {
-
+        
         WindowGroup {
-
+            
             Group {
                 switch authSessionController.state {
-
+                    
                 case .loading:
                     ProgressView()
-
+                    
                 case .signedOut:
                     LoginView()
-
+                    
                 case .signedIn:
                     TeamListView(
                         repository: teamRepository,
@@ -147,7 +147,11 @@ struct TourOpsApp: App {
             .task {
                 await authSessionController.start()
             }
+            .onChange(of: authSessionController.state) { _, newState in
+                if newState == .signedIn {
+                    syncScheduler.scheduleSync()
+                }
+            }
         }
-        .modelContainer(modelContainer)
     }
 }
