@@ -11,12 +11,12 @@ final class SupabaseSyncService: SyncServiceProtocol {
 
     private let apiClient: APIClientProtocol
     private let requestBuilder: SyncRequestBuilderProtocol
-    private let authService: SupabaseAuthService
+    private let authService: SyncAuthProviding
 
     init(
         apiClient: APIClientProtocol,
         requestBuilder: SyncRequestBuilderProtocol,
-        authService: SupabaseAuthService
+        authService: SyncAuthProviding
     ) {
         self.apiClient = apiClient
         self.requestBuilder = requestBuilder
@@ -26,6 +26,7 @@ final class SupabaseSyncService: SyncServiceProtocol {
     func execute(
         _ operation: SyncOperation
     ) async throws {
+
         var request = try requestBuilder.build(
             from: operation
         )
@@ -49,12 +50,21 @@ final class SupabaseSyncService: SyncServiceProtocol {
         }
 
         do {
-            let _: [EmptyResponse] = try await apiClient.send(
+
+            let representation: [EmptyResponse] = try await apiClient.send(
                 request,
                 responseType: [EmptyResponse].self
             )
+
+            if operation.operationType == .update,
+               representation.isEmpty {
+
+                throw SyncError.conflict
+            }
+
         } catch APIClientError.httpError(let statusCode)
                     where statusCode == 409 {
+
             throw SyncError.conflict
         }
     }
@@ -66,6 +76,7 @@ private extension SupabaseSyncService {
         _ payload: String,
         userID: UUID
     ) throws -> Data {
+
         guard
             let data = payload.data(using: .utf8),
             var object = try JSONSerialization.jsonObject(

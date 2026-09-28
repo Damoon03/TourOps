@@ -8,8 +8,8 @@
 import Foundation
 import Supabase
 
-final class SupabaseAuthService {
-
+final class SupabaseAuthService: SyncAuthProviding {
+    
     private let client: SupabaseClient
 
     init(

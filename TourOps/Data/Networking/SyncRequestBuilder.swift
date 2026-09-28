@@ -49,11 +49,6 @@ final class SyncRequestBuilder: SyncRequestBuilderProtocol {
             forHTTPHeaderField: "Prefer"
         )
 
-        request.setValue(
-            String(operation.version),
-            forHTTPHeaderField: "If-Match-Version"
-        )
-
         if let payload = operation.payload {
             request.httpBody = payload.data(
                 using: .utf8
@@ -72,19 +67,22 @@ final class SyncRequestBuilder: SyncRequestBuilderProtocol {
         case .team:
             return .team(
                 id: operation.entityID,
-                operation: operation.operationType
+                operation: operation.operationType,
+                version: operation.version
             )
 
         case .tour:
             return .tour(
                 id: operation.entityID,
-                operation: operation.operationType
+                operation: operation.operationType,
+                version: operation.version
             )
 
         case .show:
             return .show(
                 id: operation.entityID,
-                operation: operation.operationType
+                operation: operation.operationType,
+                version: operation.version
             )
         }
     }
