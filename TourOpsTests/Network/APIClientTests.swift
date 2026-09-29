@@ -72,6 +72,48 @@ struct APIClientTests {
             )
         }
     }
+    
+    @Test
+    func sendThrowsNetworkErrorWhenRequestFails() async {
+        let session = makeMockSession()
+
+        let client = APIClient(
+            session: session
+        )
+
+        let request = URLRequest(
+            url: URL(
+                string: "https://example.com/teams?error=network"
+            )!
+        )
+
+        do {
+            _ = try await client.send(
+                request,
+                responseType: TestResponse.self
+            )
+
+            Issue.record(
+                "Expected APIClientError.networkError"
+            )
+        } catch let error as APIClientError {
+            switch error {
+            case .networkError(let urlError):
+                #expect(
+                    urlError.code == .notConnectedToInternet
+                )
+
+            default:
+                Issue.record(
+                    "Expected networkError, got \(error)"
+                )
+            }
+        } catch {
+            Issue.record(
+                "Expected APIClientError, got \(error)"
+            )
+        }
+    }
 }
 
 private struct TestResponse: Decodable {
@@ -112,7 +154,15 @@ private final class MockURLProtocol: URLProtocol {
             )
             return
         }
-
+        
+        if url.query == "error=network" {
+            client?.urlProtocol(
+                self,
+                didFailWithError: URLError(.notConnectedToInternet)
+            )
+            return
+        }
+        
         let statusCode =
             URLComponents(
                 url: url,

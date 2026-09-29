@@ -38,7 +38,7 @@ final class SupabaseSyncService: SyncServiceProtocol {
             forHTTPHeaderField: "Authorization"
         )
 
-        if operation.operationType != .delete,
+        if operation.operationType == .create,
            let payload = operation.payload {
 
             let userID = try await authService.userID()
@@ -46,6 +46,13 @@ final class SupabaseSyncService: SyncServiceProtocol {
             request.httpBody = try payloadWithUserID(
                 payload,
                 userID: userID
+            )
+
+        } else if operation.operationType == .update,
+                  let payload = operation.payload {
+
+            request.httpBody = payload.data(
+                using: .utf8
             )
         }
 

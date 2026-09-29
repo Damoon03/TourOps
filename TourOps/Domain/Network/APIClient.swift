@@ -8,7 +8,6 @@
 import Foundation
 
 final class APIClient: APIClientProtocol {
-
     private let session: URLSession
 
     init(session: URLSession = .shared) {
@@ -19,7 +18,14 @@ final class APIClient: APIClientProtocol {
         _ request: URLRequest,
         responseType: Response.Type
     ) async throws -> Response {
-        let (data, response) = try await session.data(for: request)
+        let data: Data
+        let response: URLResponse
+
+        do {
+            (data, response) = try await session.data(for: request)
+        } catch let error as URLError {
+            throw APIClientError.networkError(error)
+        }
 
         guard let httpResponse = response as? HTTPURLResponse else {
             throw APIClientError.invalidResponse

@@ -10,6 +10,7 @@ import Foundation
 enum APIClientError: Error {
     case invalidResponse
     case httpError(statusCode: Int)
+    case networkError(URLError)
     case decodingError(Error)
 
     var isRetryable: Bool {
@@ -19,6 +20,9 @@ enum APIClientError: Error {
 
         case .httpError(let statusCode):
             return statusCode >= 500
+
+        case .networkError:
+            return true
 
         case .decodingError:
             return false

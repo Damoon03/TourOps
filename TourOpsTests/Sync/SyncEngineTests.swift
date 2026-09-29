@@ -32,7 +32,7 @@ struct SyncEngineTests {
         #expect(service.executedOperations.count == 1)
         #expect(repository.deletedOperations.count == 1)
     }
-    
+
     @Test
     func syncKeepsOperationWhenLocalDeleteFails() async throws {
         let repository = MockSyncOperationRepository()
@@ -153,7 +153,7 @@ struct SyncEngineTests {
             finalOperation?.retryCount == 4
         )
     }
-    
+
     @Test
     func syncMarksOperationAsConflictWithoutRetrying() async throws {
         let repository = MockSyncOperationRepository()
@@ -198,9 +198,9 @@ struct SyncEngineTests {
             repository.deletedOperations.isEmpty
         )
     }
-    
+
     // MARK: - Cancellation
-    
+
     @Test
     func syncDoesNothingWhenTaskIsAlreadyCancelled() async throws {
         let repository = MockSyncOperationRepository()
@@ -274,6 +274,56 @@ struct SyncEngineTests {
         )
     }
 
+    // MARK: - Lost Wake-up
+
+    @Test
+    func syncRunsAgainWhenRequestedWhileAlreadySyncing() async throws {
+        let repository = MockSyncOperationRepository()
+        let service = MockSyncService()
+
+        service.shouldPauseFirstExecution = true
+
+        let firstOperation = makeOperation()
+        let secondOperation = makeOperation()
+
+        repository.operations = [
+            firstOperation
+        ]
+
+        let engine = makeEngine(
+            repository: repository,
+            service: service
+        )
+
+        let firstSync = Task {
+            await engine.sync()
+        }
+
+        await service.waitUntilFirstExecutionStarts()
+
+        repository.operations = [
+            secondOperation
+        ]
+
+        await engine.sync()
+
+        service.resumeFirstExecution()
+
+        await firstSync.value
+
+        #expect(
+            service.executedOperations.count == 2
+        )
+
+        #expect(
+            service.executedOperations[0].id == firstOperation.id
+        )
+
+        #expect(
+            service.executedOperations[1].id == secondOperation.id
+        )
+    }
+
     // MARK: - Reducer Integration
 
     @Test
@@ -325,7 +375,7 @@ struct SyncEngineTests {
             service.executedOperations.first?.operationType == .create
         )
     }
-    
+
     @Test
     func syncRemovesSupersededOperationsAfterSuccessfulExecution() async throws {
         let entityID = UUID()
@@ -395,7 +445,7 @@ struct SyncEngineTests {
             repository.operations.isEmpty
         )
     }
-    
+
     @Test
     func syncRemovesCreateAndDeleteOperationsWithoutExecution() async throws {
         let entityID = UUID()
@@ -527,6 +577,7 @@ struct SyncEngineTests {
             repository.operations.isEmpty
         )
     }
+
     // MARK: - Helpers
 
     private func makeEngine(
@@ -591,37 +642,45 @@ struct SyncEngineTests {
 @MainActor
 private final class MockSyncOperationRepository:
     SyncOperationRepositoryProtocol {
-    
+
     var operations: [SyncOperation]
-    
+
     var updatedOperations: [SyncOperation] = []
     var deletedOperations: [SyncOperation] = []
-    
+
     var deleteError: Error?
-    
+
     init(
         operations: [SyncOperation] = []
     ) {
         self.operations = operations
     }
-    
+
     func fetchPendingOperations()
     async throws -> [SyncOperation] {
-        operations
+        operations.filter {
+            $0.status == .pending
+        }
     }
-    
+
     func add(
         _ operation: SyncOperation
     ) async throws {
         operations.append(operation)
     }
-    
+
     func update(
         _ operation: SyncOperation
     ) async throws {
         updatedOperations.append(operation)
+
+        if let index = operations.firstIndex(
+            where: { $0.id == operation.id }
+        ) {
+            operations[index] = operation
+        }
     }
-    
+
     func delete(
         _ operation: SyncOperation
     ) async throws {
@@ -641,15 +700,53 @@ private final class MockSyncOperationRepository:
 
 @MainActor
 private final class MockSyncService:
+
     SyncServiceProtocol {
 
     var executedOperations: [SyncOperation] = []
     var error: Error?
 
+    var shouldPauseFirstExecution = false
+
+    private var firstExecutionContinuation:
+        CheckedContinuation<Void, Never>?
+
+    private var executeStartedContinuation:
+        CheckedContinuation<Void, Never>?
+
+    private var firstExecutionStarted = false
+
+    func waitUntilFirstExecutionStarts() async {
+        if firstExecutionStarted {
+            return
+        }
+
+        await withCheckedContinuation { continuation in
+            executeStartedContinuation = continuation
+        }
+    }
+
+    func resumeFirstExecution() {
+        firstExecutionContinuation?.resume()
+        firstExecutionContinuation = nil
+    }
+
     func execute(
         _ operation: SyncOperation
     ) async throws {
         executedOperations.append(operation)
+
+        if shouldPauseFirstExecution &&
+            executedOperations.count == 1 {
+
+            await withCheckedContinuation { continuation in
+                firstExecutionContinuation = continuation
+                firstExecutionStarted = true
+
+                executeStartedContinuation?.resume()
+                executeStartedContinuation = nil
+            }
+        }
 
         if let error {
             throw error
@@ -662,5 +759,4 @@ private final class MockSyncService:
 private enum TestError: Error {
     case executionFailed
     case persistenceFailed
-
 }

@@ -35,9 +35,9 @@ struct SupabaseSyncServiceTests {
         #expect(apiClient.sendCallCount == 1)
         #expect(requestBuilder.buildCallCount == 1)
         #expect(authService.accessTokenCallCount == 1)
-        #expect(authService.userIDCallCount == 1)
+        #expect(authService.userIDCallCount == 0)
     }
-
+    
     @Test
     func updateThrowsConflictWhenServerReturnsEmptyRepresentation() async {
 

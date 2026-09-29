@@ -16,6 +16,7 @@ final class SyncEngine: SyncEngineProtocol {
     private let operationReducer: SyncOperationReducer
 
     private var isSyncing = false
+    private var syncRequested = false
 
     init(
         syncOperationRepository: SyncOperationRepositoryProtocol,
@@ -35,6 +36,7 @@ final class SyncEngine: SyncEngineProtocol {
         }
 
         guard !isSyncing else {
+            syncRequested = true
             return
         }
 
@@ -44,44 +46,48 @@ final class SyncEngine: SyncEngineProtocol {
             isSyncing = false
         }
 
-        do {
-            let pendingOperations =
-                try await syncOperationRepository.fetchPendingOperations()
+        repeat {
+            syncRequested = false
 
-            let groupedOperations =
-                Dictionary(
-                    grouping: pendingOperations,
-                    by: \.entityID
-                )
+            do {
+                let pendingOperations =
+                    try await syncOperationRepository.fetchPendingOperations()
 
-            for (_, entityOperations) in groupedOperations {
-                let reducedOperations =
-                    operationReducer.reduce(
-                        entityOperations
+                let groupedOperations =
+                    Dictionary(
+                        grouping: pendingOperations,
+                        by: \.entityID
                     )
 
-                if reducedOperations.isEmpty {
-                    for operation in entityOperations {
-                        try? await syncOperationRepository.delete(
-                            operation
+                for (_, entityOperations) in groupedOperations {
+                    let reducedOperations =
+                        operationReducer.reduce(
+                            entityOperations
                         )
+
+                    if reducedOperations.isEmpty {
+                        for operation in entityOperations {
+                            try? await syncOperationRepository.delete(
+                                operation
+                            )
+                        }
+
+                        continue
                     }
 
-                    continue
+                    for operation in reducedOperations {
+                        await process(
+                            operation,
+                            relatedOperations: entityOperations
+                        )
+                    }
                 }
-
-                for operation in reducedOperations {
-                    await process(
-                        operation,
-                        relatedOperations: entityOperations
-                    )
-                }
+            } catch {
+                return
             }
-        } catch {
-            return
-        }
+        } while syncRequested && !Task.isCancelled
     }
-    
+
     private func process(
         _ operation: SyncOperation,
         relatedOperations: [SyncOperation]
@@ -133,9 +139,19 @@ final class SyncEngine: SyncEngineProtocol {
             return
         }
 
+        if case APIClientError.networkError = error {
+            var pendingOperation = operation
+            pendingOperation.status = .pending
+
+            try? await syncOperationRepository.update(
+                pendingOperation
+            )
+
+            return
+        }
+
         if let apiError = error as? APIClientError,
            !apiError.isRetryable {
-
             var failedOperation = operation
             failedOperation.status = .failed
 

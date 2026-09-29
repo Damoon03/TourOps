@@ -11,6 +11,8 @@ import SwiftData
 @main
 struct TourOpsApp: App {
     
+    @Environment(\.scenePhase) private var scenePhase
+    
     private let modelContainer: ModelContainer
     private let teamRepository: SyncTrackingTeamRepository
     private let tourRepository: SyncTrackingTourRepository
@@ -149,6 +151,11 @@ struct TourOpsApp: App {
             }
             .onChange(of: authSessionController.state) { _, newState in
                 if newState == .signedIn {
+                    syncScheduler.scheduleSync()
+                }
+            }
+            .onChange(of: scenePhase) { _, newPhase in
+                if newPhase == .active {
                     syncScheduler.scheduleSync()
                 }
             }
