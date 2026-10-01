@@ -11,6 +11,8 @@ protocol SyncOperationRepositoryProtocol {
 
     func fetchPendingOperations() async throws -> [SyncOperation]
 
+    func fetchOperations(forEntityID entityID: UUID) async throws -> [SyncOperation]
+
     func add(_ operation: SyncOperation) async throws
 
     func update(_ operation: SyncOperation) async throws

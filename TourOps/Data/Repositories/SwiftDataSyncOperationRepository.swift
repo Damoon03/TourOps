@@ -18,6 +18,21 @@ final class SwiftDataSyncOperationRepository: SyncOperationRepositoryProtocol {
     }
 
     // MARK: - Fetch
+    
+    func fetchOperations(forEntityID entityID: UUID) async throws -> [SyncOperation] {
+        let descriptor = FetchDescriptor<SyncOperationEntity>(
+            predicate: #Predicate {
+                $0.entityID == entityID
+            },
+            sortBy: [
+                SortDescriptor(\.createdAt, order: .forward)
+            ]
+        )
+
+        let entities = try modelContext.fetch(descriptor)
+
+        return entities.map { $0.toDomain() }
+    }
 
     func fetchPendingOperations() async throws -> [SyncOperation] {
         let processingStatus = SyncOperationStatus.processing.rawValue

@@ -108,6 +108,61 @@ struct SwiftDataSyncOperationRepositoryTests {
 
         #expect(operations.map(\.id) == [first.id, second.id])
     }
+    
+    @Test
+    func fetchOperationsForEntityIDReturnsMatchingOperationsInCreationOrder() async throws {
+        let (repository, _) = try makeRepository()
+
+        let entityID = UUID()
+        let otherEntityID = UUID()
+
+        let first = SyncOperation(
+            id: UUID(),
+            entityID: entityID,
+            entityType: .team,
+            operationType: .create,
+            payload: nil,
+            version: 1,
+            createdAt: Date(timeIntervalSince1970: 100),
+            status: .pending,
+            retryCount: 0
+        )
+
+        let second = SyncOperation(
+            id: UUID(),
+            entityID: entityID,
+            entityType: .team,
+            operationType: .update,
+            payload: nil,
+            version: 2,
+            createdAt: Date(timeIntervalSince1970: 200),
+            status: .conflict,
+            retryCount: 0
+        )
+
+        let other = SyncOperation(
+            id: UUID(),
+            entityID: otherEntityID,
+            entityType: .team,
+            operationType: .create,
+            payload: nil,
+            version: 1,
+            createdAt: Date(timeIntervalSince1970: 150),
+            status: .pending,
+            retryCount: 0
+        )
+
+        try await repository.add(second)
+        try await repository.add(other)
+        try await repository.add(first)
+
+        let operations = try await repository.fetchOperations(
+            forEntityID: entityID
+        )
+
+        #expect(operations.map(\.id) == [first.id, second.id])
+        #expect(operations.map(\.status) == [.pending, .conflict])
+    }
 
     // MARK: - Update
 

@@ -644,10 +644,8 @@ private final class MockSyncOperationRepository:
     SyncOperationRepositoryProtocol {
 
     var operations: [SyncOperation]
-
     var updatedOperations: [SyncOperation] = []
     var deletedOperations: [SyncOperation] = []
-
     var deleteError: Error?
 
     init(
@@ -657,9 +655,17 @@ private final class MockSyncOperationRepository:
     }
 
     func fetchPendingOperations()
-    async throws -> [SyncOperation] {
+        async throws -> [SyncOperation] {
         operations.filter {
             $0.status == .pending
+        }
+    }
+
+    func fetchOperations(
+        forEntityID entityID: UUID
+    ) async throws -> [SyncOperation] {
+        operations.filter {
+            $0.entityID == entityID
         }
     }
 

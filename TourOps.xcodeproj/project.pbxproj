@@ -48,6 +48,7 @@
 				Sync/DefaultSyncServiceTests.swift,
 				Sync/MockSyncScheduler.swift,
 				Sync/SupabaseSyncServiceTests.swift,
+				Sync/SupabaseTeamPullServiceTests.swift,
 				Sync/SyncEndpointTests.swift,
 				Sync/SyncEngineTests.swift,
 				Sync/SyncOperationReducerTests.swift,
