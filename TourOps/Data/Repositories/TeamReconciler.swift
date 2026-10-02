@@ -1,0 +1,64 @@
+//
+//  TeamReconciler.swift
+//  TourOps
+//
+//  Created by Damoon saber on 7/10/1405 AP.
+//
+
+import Foundation
+
+@MainActor
+final class TeamReconciler {
+
+    private let teamRepository: SwiftDataTeamRepository
+    private let syncOperationRepository: SyncOperationRepositoryProtocol
+
+    init(
+        teamRepository: SwiftDataTeamRepository,
+        syncOperationRepository: SyncOperationRepositoryProtocol
+    ) {
+        self.teamRepository = teamRepository
+        self.syncOperationRepository = syncOperationRepository
+    }
+
+    func reconcile(remoteTeams: [Team]) async throws {
+        let localTeams = try await teamRepository.fetchTeams()
+
+        let localTeamsByID = Dictionary(
+            uniqueKeysWithValues: localTeams.map { ($0.id, $0) }
+        )
+
+        for remoteTeam in remoteTeams {
+            guard let localTeam = localTeamsByID[remoteTeam.id] else {
+                try teamRepository.stageCreateTeam(remoteTeam)
+                continue
+            }
+
+            let operations = try await syncOperationRepository.fetchOperations(
+                forEntityID: remoteTeam.id
+            )
+
+            let hasBlockingOperation = operations.contains {
+                switch $0.status {
+                case .pending, .processing, .conflict:
+                    true
+
+                case .failed:
+                    false
+                }
+            }
+
+            if hasBlockingOperation {
+                continue
+            }
+
+            guard remoteTeam.version > localTeam.version else {
+                continue
+            }
+
+            try teamRepository.stageApplyRemoteTeam(remoteTeam)
+        }
+
+        try teamRepository.save()
+    }
+}

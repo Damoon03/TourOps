@@ -172,6 +172,41 @@ struct SwiftDataTeamRepositoryTests {
         #expect(fetchedTeam.city == "Manchester")
         #expect(fetchedTeam.version == 2)
     }
+    @Test
+    func stageApplyRemoteTeamUpdatesStoredTeamWithRemoteVersion() async throws {
+        let team = Team(
+            id: UUID(),
+            name: "Original Band",
+            genre: "Rock",
+            country: "UK",
+            city: "London",
+            createdAt: Date(),
+            version: 2
+        )
+
+        try await repository.createTeam(team)
+
+        let remoteTeam = Team(
+            id: team.id,
+            name: "Remote Band",
+            genre: "Jazz",
+            country: "Germany",
+            city: "Berlin",
+            createdAt: team.createdAt,
+            version: 5
+        )
+
+        try repository.stageApplyRemoteTeam(remoteTeam)
+        try container.mainContext.save()
+
+        let fetchedTeam = try await repository.fetchTeam(id: team.id)
+
+        #expect(fetchedTeam.name == "Remote Band")
+        #expect(fetchedTeam.genre == "Jazz")
+        #expect(fetchedTeam.country == "Germany")
+        #expect(fetchedTeam.city == "Berlin")
+        #expect(fetchedTeam.version == 5)
+    }
 
     @Test
     func deleteTeamThrowsNotFoundForMissingTeam() async throws {

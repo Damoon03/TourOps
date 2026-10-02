@@ -91,6 +91,25 @@ final class SwiftDataTeamRepository: TeamRepositoryProtocol {
         entity.version += 1
     }
 
+    func stageApplyRemoteTeam(_ team: Team) throws {
+        let teamID = team.id
+
+        let descriptor = FetchDescriptor<TeamEntity>(
+            predicate: #Predicate { $0.id == teamID }
+        )
+
+        if let entity = try modelContext.fetch(descriptor).first {
+            entity.name = team.name
+            entity.genre = team.genre
+            entity.country = team.country
+            entity.city = team.city
+            entity.version = team.version
+        } else {
+            let entity = TeamEntity(team: team)
+            modelContext.insert(entity)
+        }
+    }
+    
     // MARK: - Delete
 
     func deleteTeam(id: UUID) async throws {
@@ -109,4 +128,9 @@ final class SwiftDataTeamRepository: TeamRepositoryProtocol {
 
         modelContext.delete(entity)
     }
+    
+    func save() throws {
+        try modelContext.save()
+    }
+    
 }
