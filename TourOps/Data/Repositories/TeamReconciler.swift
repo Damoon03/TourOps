@@ -29,14 +29,22 @@ final class TeamReconciler {
         )
 
         for remoteTeam in remoteTeams {
-            guard let localTeam = localTeamsByID[remoteTeam.id] else {
-                try teamRepository.stageCreateTeam(remoteTeam)
-                continue
-            }
-
             let operations = try await syncOperationRepository.fetchOperations(
                 forEntityID: remoteTeam.id
             )
+
+            let hasBlockingDelete = operations.contains {
+                $0.operationType == .delete &&
+                ($0.status == .pending || $0.status == .processing)
+            }
+
+            guard let localTeam = localTeamsByID[remoteTeam.id] else {
+                if !hasBlockingDelete {
+                    try teamRepository.stageCreateTeam(remoteTeam)
+                }
+
+                continue
+            }
 
             let hasBlockingOperation = operations.contains {
                 switch $0.status {
@@ -58,7 +66,7 @@ final class TeamReconciler {
 
             try teamRepository.stageApplyRemoteTeam(remoteTeam)
         }
-
+        
         try teamRepository.save()
     }
 }

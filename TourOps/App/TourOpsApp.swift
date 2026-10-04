@@ -18,6 +18,7 @@ struct TourOpsApp: App {
     private let tourRepository: SyncTrackingTourRepository
     private let showRepository: SyncTrackingShowRepository
     private let syncScheduler: SyncScheduler
+    private let teamPullCoordinator: TeamPullCoordinator
     private let authSessionController: AuthSessionController
     
     init() {
@@ -93,6 +94,22 @@ struct TourOpsApp: App {
                 modelContext: modelContext
             )
             
+            let teamPullService = SupabaseTeamPullService(
+                apiClient: apiClient,
+                authService: authService,
+                baseURL: TourOpsSupabaseClient.shared.baseURL
+            )
+            
+            let teamReconciler = TeamReconciler(
+                teamRepository: teamRepository,
+                syncOperationRepository: syncOperationRepository
+            )
+            
+            self.teamPullCoordinator = TeamPullCoordinator(
+                pullService: teamPullService,
+                reconciler: teamReconciler
+            )
+            
             self.teamRepository =
             SyncTrackingTeamRepository(
                 teamRepository: teamRepository,
@@ -151,14 +168,22 @@ struct TourOpsApp: App {
             }
             .onChange(of: authSessionController.state) { _, newState in
                 if newState == .signedIn {
-                    syncScheduler.scheduleSync()
+                    Task {
+                        await syncScheduler.syncNow()
+                        try? await teamPullCoordinator.pullTeams()
+                    }
                 }
             }
             .onChange(of: scenePhase) { _, newPhase in
                 if newPhase == .active {
-                    syncScheduler.scheduleSync()
+                    Task {
+                        await syncScheduler.syncNow()
+                        try? await teamPullCoordinator.pullTeams()
+                    }
                 }
             }
         }
+        .modelContainer(modelContainer)
     }
 }
+

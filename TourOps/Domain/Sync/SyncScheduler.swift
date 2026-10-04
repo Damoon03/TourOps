@@ -12,24 +12,46 @@ final class SyncScheduler: SyncSchedulerProtocol {
 
     private let syncEngine: SyncEngineProtocol
 
+    private var syncTask: Task<Void, Never>?
+
     init(
         syncEngine: SyncEngineProtocol
     ) {
         self.syncEngine = syncEngine
     }
 
-
     func scheduleSync() {
+        guard syncTask == nil else {
+            return
+        }
 
-        Task {
+        syncTask = Task {
             await syncEngine.sync()
+            syncTask = nil
         }
     }
 
+    func syncNow() async {
+        if let syncTask {
+            await syncTask.value
+            return
+        }
+
+        let task = Task {
+            await syncEngine.sync()
+        }
+
+        syncTask = task
+
+        await task.value
+
+        if syncTask != nil {
+            syncTask = nil
+        }
+    }
 
     func cancelScheduledSync() {
-
-        // Background scheduling will be added later.
-        // Current implementation has no active scheduled task.
+        syncTask?.cancel()
+        syncTask = nil
     }
 }

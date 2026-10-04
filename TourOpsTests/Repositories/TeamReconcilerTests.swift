@@ -67,6 +67,82 @@ struct TeamReconcilerTests {
         #expect(teams.first?.version == 3)
     }
 
+    @Test
+    func pendingDeletePreventsRemoteOnlyTeamFromBeingRecreated() async throws {
+        let remoteTeam = makeTeam(
+            name: "Deleted Band",
+            version: 2
+        )
+
+        let operation = makeOperation(
+            entityID: remoteTeam.id,
+            status: .pending,
+            version: 2,
+            operationType: .delete
+        )
+
+        try await syncOperationRepository.add(operation)
+
+        try await reconciler.reconcile(
+            remoteTeams: [remoteTeam]
+        )
+
+        let teams = try await teamRepository.fetchTeams()
+
+        #expect(teams.isEmpty)
+    }
+
+    @Test
+    func processingDeletePreventsRemoteOnlyTeamFromBeingRecreated() async throws {
+        let remoteTeam = makeTeam(
+            name: "Deleted Band",
+            version: 2
+        )
+
+        let operation = makeOperation(
+            entityID: remoteTeam.id,
+            status: .processing,
+            version: 2,
+            operationType: .delete
+        )
+
+        try await syncOperationRepository.add(operation)
+
+        try await reconciler.reconcile(
+            remoteTeams: [remoteTeam]
+        )
+
+        let teams = try await teamRepository.fetchTeams()
+
+        #expect(teams.isEmpty)
+    }
+
+    @Test
+    func failedDeleteDoesNotPreventRemoteOnlyTeamFromBeingRecreated() async throws {
+        let remoteTeam = makeTeam(
+            name: "Remote Band",
+            version: 2
+        )
+
+        let operation = makeOperation(
+            entityID: remoteTeam.id,
+            status: .failed,
+            version: 2,
+            operationType: .delete
+        )
+
+        try await syncOperationRepository.add(operation)
+
+        try await reconciler.reconcile(
+            remoteTeams: [remoteTeam]
+        )
+
+        let teams = try await teamRepository.fetchTeams()
+
+        #expect(teams.count == 1)
+        #expect(teams.first?.id == remoteTeam.id)
+    }
+
     // MARK: - Newer Remote
 
     @Test
@@ -348,13 +424,14 @@ struct TeamReconcilerTests {
     private func makeOperation(
         entityID: UUID,
         status: SyncOperationStatus,
-        version: Int
+        version: Int,
+        operationType: SyncOperationType = .update
     ) -> SyncOperation {
         SyncOperation(
             id: UUID(),
             entityID: entityID,
             entityType: .team,
-            operationType: .update,
+            operationType: operationType,
             payload: nil,
             version: version,
             createdAt: Date(),

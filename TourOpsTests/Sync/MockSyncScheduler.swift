@@ -12,9 +12,14 @@ import Foundation
 final class MockSyncScheduler: SyncSchedulerProtocol {
 
     var scheduleSyncCallCount = 0
+    var syncNowCallCount = 0
 
     func scheduleSync() {
         scheduleSyncCallCount += 1
+    }
+
+    func syncNow() async {
+        syncNowCallCount += 1
     }
 
     func cancelScheduledSync() {
