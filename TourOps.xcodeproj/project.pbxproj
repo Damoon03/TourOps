@@ -46,6 +46,8 @@
 				Repositories/SwiftDataTeamRepositoryTests.swift,
 				Repositories/SwiftDataTourRepositoryTests.swift,
 				Repositories/TeamReconcilerTests.swift,
+				Repositories/TourPullCoordinatorTests.swift,
+				Repositories/TourReconcilerTests.swift,
 				Sync/DefaultSyncServiceTests.swift,
 				Sync/MockSyncScheduler.swift,
 				Sync/SupabaseSyncServiceTests.swift,

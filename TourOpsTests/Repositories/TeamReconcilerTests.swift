@@ -383,13 +383,39 @@ struct TeamReconcilerTests {
     // MARK: - Local-only
 
     @Test
-    func localOnlyTeamIsPreserved() async throws {
+    func localOnlyTeamIsDeleted() async throws {
         let localTeam = makeTeam(
             name: "Local Band",
             version: 2
         )
 
         try await teamRepository.createTeam(localTeam)
+
+        try await reconciler.reconcile(
+            remoteTeams: []
+        )
+
+        await #expect(throws: RepositoryError.notFound) {
+            try await teamRepository.fetchTeam(id: localTeam.id)
+        }
+    }
+
+    @Test
+    func pendingOperationPreservesLocalOnlyTeam() async throws {
+        let localTeam = makeTeam(
+            name: "Local Band",
+            version: 2
+        )
+
+        try await teamRepository.createTeam(localTeam)
+
+        let operation = makeOperation(
+            entityID: localTeam.id,
+            status: .pending,
+            version: 2
+        )
+
+        try await syncOperationRepository.add(operation)
 
         try await reconciler.reconcile(
             remoteTeams: []
@@ -402,6 +428,87 @@ struct TeamReconcilerTests {
         #expect(fetchedTeam == localTeam)
     }
 
+    @Test
+    func processingOperationPreservesLocalOnlyTeam() async throws {
+        let localTeam = makeTeam(
+            name: "Local Band",
+            version: 2
+        )
+
+        try await teamRepository.createTeam(localTeam)
+
+        let operation = makeOperation(
+            entityID: localTeam.id,
+            status: .processing,
+            version: 2
+        )
+
+        try await syncOperationRepository.add(operation)
+
+        try await reconciler.reconcile(
+            remoteTeams: []
+        )
+
+        let fetchedTeam = try await teamRepository.fetchTeam(
+            id: localTeam.id
+        )
+
+        #expect(fetchedTeam == localTeam)
+    }
+
+    @Test
+    func conflictOperationPreservesLocalOnlyTeam() async throws {
+        let localTeam = makeTeam(
+            name: "Local Band",
+            version: 2
+        )
+
+        try await teamRepository.createTeam(localTeam)
+
+        let operation = makeOperation(
+            entityID: localTeam.id,
+            status: .conflict,
+            version: 2
+        )
+
+        try await syncOperationRepository.add(operation)
+
+        try await reconciler.reconcile(
+            remoteTeams: []
+        )
+
+        let fetchedTeam = try await teamRepository.fetchTeam(
+            id: localTeam.id
+        )
+
+        #expect(fetchedTeam == localTeam)
+    }
+
+    @Test
+    func failedOperationDoesNotPreserveLocalOnlyTeam() async throws {
+        let localTeam = makeTeam(
+            name: "Local Band",
+            version: 2
+        )
+
+        try await teamRepository.createTeam(localTeam)
+
+        let operation = makeOperation(
+            entityID: localTeam.id,
+            status: .failed,
+            version: 2
+        )
+
+        try await syncOperationRepository.add(operation)
+
+        try await reconciler.reconcile(
+            remoteTeams: []
+        )
+
+        await #expect(throws: RepositoryError.notFound) {
+            try await teamRepository.fetchTeam(id: localTeam.id)
+        }
+    }
     // MARK: - Helpers
 
     private func makeTeam(

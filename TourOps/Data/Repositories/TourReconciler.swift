@@ -1,40 +1,41 @@
 //
-//  TeamReconciler.swift
+//  TourReconciler.swift
 //  TourOps
 //
-//  Created by Damoon saber on 7/10/1405 AP.
+//  Created by Damoon saber on 7/13/1405 AP.
 //
 
 import Foundation
 
 @MainActor
-final class TeamReconciler {
+final class TourReconciler {
 
-    private let teamRepository: SwiftDataTeamRepository
+    private let tourRepository: SwiftDataTourRepository
     private let syncOperationRepository: SyncOperationRepositoryProtocol
 
     init(
-        teamRepository: SwiftDataTeamRepository,
+        tourRepository: SwiftDataTourRepository,
         syncOperationRepository: SyncOperationRepositoryProtocol
     ) {
-        self.teamRepository = teamRepository
+        self.tourRepository = tourRepository
         self.syncOperationRepository = syncOperationRepository
     }
 
-    func reconcile(remoteTeams: [Team]) async throws {
-        let localTeams = try await teamRepository.fetchTeams()
+    func reconcile(remoteTours: [Tour]) async throws {
+        let localTours = try await tourRepository.fetchTours()
 
-        let localTeamsByID = Dictionary(
-            uniqueKeysWithValues: localTeams.map { ($0.id, $0) }
+        let localToursByID = Dictionary(
+            uniqueKeysWithValues: localTours.map { ($0.id, $0) }
         )
 
-        let remoteTeamIDs = Set(
-            remoteTeams.map(\.id)
+        let remoteTourIDs = Set(
+            remoteTours.map(\.id)
         )
 
-        for remoteTeam in remoteTeams {
+        // Remote tours
+        for remoteTour in remoteTours {
             let operations = try await syncOperationRepository.fetchOperations(
-                forEntityID: remoteTeam.id
+                forEntityID: remoteTour.id
             )
 
             let hasBlockingDelete = operations.contains {
@@ -42,9 +43,9 @@ final class TeamReconciler {
                 ($0.status == .pending || $0.status == .processing)
             }
 
-            guard let localTeam = localTeamsByID[remoteTeam.id] else {
+            guard let localTour = localToursByID[remoteTour.id] else {
                 if !hasBlockingDelete {
-                    try teamRepository.stageCreateTeam(remoteTeam)
+                    try tourRepository.stageCreateTour(remoteTour)
                 }
 
                 continue
@@ -64,20 +65,21 @@ final class TeamReconciler {
                 continue
             }
 
-            guard remoteTeam.version > localTeam.version else {
+            guard remoteTour.version > localTour.version else {
                 continue
             }
 
-            try teamRepository.stageApplyRemoteTeam(remoteTeam)
+            try tourRepository.stageApplyRemoteTour(remoteTour)
         }
 
-        for localTeam in localTeams {
-            guard !remoteTeamIDs.contains(localTeam.id) else {
+        // Local tours missing from remote
+        for localTour in localTours {
+            guard !remoteTourIDs.contains(localTour.id) else {
                 continue
             }
 
             let operations = try await syncOperationRepository.fetchOperations(
-                forEntityID: localTeam.id
+                forEntityID: localTour.id
             )
 
             let hasBlockingOperation = operations.contains {
@@ -94,9 +96,9 @@ final class TeamReconciler {
                 continue
             }
 
-            try teamRepository.stageDeleteTeam(id: localTeam.id)
+            try tourRepository.stageDeleteTour(id: localTour.id)
         }
 
-        try teamRepository.save()
+        try tourRepository.save()
     }
 }

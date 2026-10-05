@@ -113,4 +113,28 @@ final class SwiftDataTourRepository: TourRepositoryProtocol {
 
         modelContext.delete(entity)
     }
+    
+    // MARK: - Reconciliation
+
+    func stageApplyRemoteTour(_ tour: Tour) throws {
+        let tourID = tour.id
+
+        let descriptor = FetchDescriptor<TourEntity>(
+            predicate: #Predicate { $0.id == tourID }
+        )
+
+        guard let entity = try modelContext.fetch(descriptor).first else {
+            throw RepositoryError.notFound
+        }
+
+        entity.teamID = tour.teamID
+        entity.name = tour.name
+        entity.startDate = tour.startDate
+        entity.endDate = tour.endDate
+        entity.version = tour.version
+    }
+
+    func save() throws {
+        try modelContext.save()
+    }
 }
