@@ -11,14 +11,21 @@ import Foundation
 final class TourPullCoordinator {
 
     private let pullService: TourPullServiceProtocol
+    private let reconciler: TourReconciler
 
     init(
-        pullService: TourPullServiceProtocol
+        pullService: TourPullServiceProtocol,
+        reconciler: TourReconciler
     ) {
         self.pullService = pullService
+        self.reconciler = reconciler
     }
 
-    func pullTours() async throws -> [Tour] {
-        try await pullService.fetchTours()
+    func pullTours() async throws {
+        let remoteTours = try await pullService.fetchTours()
+
+        try await reconciler.reconcile(
+            remoteTours: remoteTours
+        )
     }
 }

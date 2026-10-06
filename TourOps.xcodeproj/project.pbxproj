@@ -41,6 +41,7 @@
 			membershipExceptions = (
 				Network/APIClientTests.swift,
 				Repositories/MockTeamRepositoryTests.swift,
+				Repositories/ShowPullCoordinatorTests.swift,
 				Repositories/SwiftDataShowRepositoryTests.swift,
 				Repositories/SwiftDataSyncOperationRepositoryTests.swift,
 				Repositories/SwiftDataTeamRepositoryTests.swift,
