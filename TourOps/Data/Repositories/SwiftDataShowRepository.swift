@@ -66,6 +66,29 @@ final class SwiftDataShowRepository: ShowRepositoryProtocol {
         modelContext.insert(entity)
     }
 
+    func stageApplyRemoteShow(_ show: Show) throws {
+        let showID = show.id
+
+        let descriptor = FetchDescriptor<ShowEntity>(
+            predicate: #Predicate { $0.id == showID }
+        )
+
+        guard let entity = try modelContext.fetch(descriptor).first else {
+            throw RepositoryError.notFound
+        }
+
+        entity.tourID = show.tourID
+        entity.name = show.name
+        entity.venue = show.venue
+        entity.city = show.city
+        entity.date = show.date
+        entity.version = show.version
+    }
+    
+    func save() throws {
+        try modelContext.save()
+    }
+
     // MARK: - Update
 
     func updateShow(_ show: Show) async throws {

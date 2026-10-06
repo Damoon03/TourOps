@@ -87,6 +87,44 @@ struct SwiftDataShowRepositoryTests {
             try await repository.createShow(secondShow)
         }
     }
+    
+    @Test
+    func stageApplyRemoteShowUpdatesLocalShow() async throws {
+        let show = Show(
+            id: UUID(),
+            tourID: UUID(),
+            name: "London Show",
+            venue: "O2 Arena",
+            city: "London",
+            date: Date(),
+            createdAt: Date(),
+            version: 1
+        )
+
+        try await repository.createShow(show)
+
+        let remoteShow = Show(
+            id: show.id,
+            tourID: show.tourID,
+            name: "Updated London Show",
+            venue: "Wembley Arena",
+            city: "London",
+            date: show.date,
+            createdAt: show.createdAt,
+            version: 2
+        )
+
+        try repository.stageApplyRemoteShow(remoteShow)
+        try repository.save()
+
+        let fetchedShow = try await repository.fetchShow(
+            id: show.id
+        )
+
+        #expect(fetchedShow.name == "Updated London Show")
+        #expect(fetchedShow.venue == "Wembley Arena")
+        #expect(fetchedShow.version == 2)
+    }
 
     @Test
     func fetchShowThrowsNotFoundForMissingShow() async throws {

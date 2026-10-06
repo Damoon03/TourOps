@@ -42,6 +42,7 @@
 				Network/APIClientTests.swift,
 				Repositories/MockTeamRepositoryTests.swift,
 				Repositories/ShowPullCoordinatorTests.swift,
+				Repositories/ShowReconcilerTests.swift,
 				Repositories/SwiftDataShowRepositoryTests.swift,
 				Repositories/SwiftDataSyncOperationRepositoryTests.swift,
 				Repositories/SwiftDataTeamRepositoryTests.swift,
