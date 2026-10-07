@@ -11,14 +11,21 @@ import Foundation
 final class ShowPullCoordinator {
 
     private let pullService: ShowPullServiceProtocol
+    private let reconciler: ShowReconciler
 
     init(
-        pullService: ShowPullServiceProtocol
+        pullService: ShowPullServiceProtocol,
+        reconciler: ShowReconciler
     ) {
         self.pullService = pullService
+        self.reconciler = reconciler
     }
 
-    func pullShows() async throws -> [Show] {
-        try await pullService.fetchShows()
+    func pullShows() async throws {
+        let remoteShows = try await pullService.fetchShows()
+
+        try await reconciler.reconcile(
+            remoteShows: remoteShows
+        )
     }
 }

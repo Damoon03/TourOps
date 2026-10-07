@@ -21,6 +21,7 @@ struct TourOpsApp: App {
     private let teamPullCoordinator: TeamPullCoordinator
     private let tourPullCoordinator: TourPullCoordinator
     private let authSessionController: AuthSessionController
+    private let showPullCoordinator: ShowPullCoordinator
 
     init() {
 
@@ -125,6 +126,22 @@ struct TourOpsApp: App {
                 pullService: tourPullService,
                 reconciler: tourReconciler
             )
+            
+            let showPullService = SupabaseShowPullService(
+                apiClient: apiClient,
+                authService: authService,
+                baseURL: TourOpsSupabaseClient.shared.baseURL
+            )
+
+            let showReconciler = ShowReconciler(
+                showRepository: showRepository,
+                syncOperationRepository: syncOperationRepository
+            )
+
+            self.showPullCoordinator = ShowPullCoordinator(
+                pullService: showPullService,
+                reconciler: showReconciler
+            )
 
             self.teamRepository =
                 SyncTrackingTeamRepository(
@@ -194,6 +211,7 @@ struct TourOpsApp: App {
 
                         try? await teamPullCoordinator.pullTeams()
                         try? await tourPullCoordinator.pullTours()
+                        try? await showPullCoordinator.pullShows()
                     }
                 }
             }
@@ -207,6 +225,7 @@ struct TourOpsApp: App {
 
                         try? await teamPullCoordinator.pullTeams()
                         try? await tourPullCoordinator.pullTours()
+                        try? await showPullCoordinator.pullShows()
                     }
                 }
             }
