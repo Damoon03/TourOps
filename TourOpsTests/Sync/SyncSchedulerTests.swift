@@ -15,80 +15,80 @@ struct SyncSchedulerTests {
     @Test
     func scheduleSyncTriggersSyncEngine() async throws {
         let engine = MockSyncEngine()
-
-        let scheduler = SyncScheduler(
-            syncEngine: engine
-        )
+        let scheduler = SyncScheduler(syncEngine: engine)
 
         scheduler.scheduleSync()
 
         await engine.waitUntilSyncStarts()
 
-        #expect(
-            engine.syncCallCount == 1
-        )
+        #expect(engine.syncCallCount == 1)
 
         engine.finishSync()
 
-        try await Task.sleep(
-            nanoseconds: 10_000_000
-        )
+        try await Task.sleep(nanoseconds: 10_000_000)
     }
 
     @Test
     func scheduleSyncDoesNotStartDuplicateSync() async throws {
         let engine = MockSyncEngine()
-
-        let scheduler = SyncScheduler(
-            syncEngine: engine
-        )
+        let scheduler = SyncScheduler(syncEngine: engine)
 
         scheduler.scheduleSync()
         scheduler.scheduleSync()
 
         await engine.waitUntilSyncStarts()
 
-        #expect(
-            engine.syncCallCount == 1
-        )
+        #expect(engine.syncCallCount == 1)
 
         engine.finishSync()
 
-        try await Task.sleep(
-            nanoseconds: 10_000_000
-        )
+        try await Task.sleep(nanoseconds: 10_000_000)
 
-        #expect(
-            engine.syncCallCount == 1
-        )
+        #expect(engine.syncCallCount == 1)
+    }
+
+    @Test
+    func scheduleSyncDuringActiveSyncTriggersAnotherSync() async {
+        let engine = MockSyncEngine()
+        let scheduler = SyncScheduler(syncEngine: engine)
+
+        let initialTask = Task {
+            await scheduler.syncNow()
+        }
+
+        await engine.waitUntilSyncStarts()
+
+        #expect(engine.syncCallCount == 1)
+
+        scheduler.scheduleSync()
+
+        engine.finishSync()
+
+        await engine.waitUntilSyncCallCount(2)
+
+        #expect(engine.syncCallCount == 2)
+
+        engine.finishSync()
+
+        await initialTask.value
     }
 
     @Test
     func cancelScheduledSyncDoesNotTriggerSync() async throws {
         let engine = MockSyncEngine()
-
-        let scheduler = SyncScheduler(
-            syncEngine: engine
-        )
+        let scheduler = SyncScheduler(syncEngine: engine)
 
         scheduler.cancelScheduledSync()
 
-        try await Task.sleep(
-            nanoseconds: 10_000_000
-        )
+        try await Task.sleep(nanoseconds: 10_000_000)
 
-        #expect(
-            engine.syncCallCount == 0
-        )
+        #expect(engine.syncCallCount == 0)
     }
 
     @Test
-    func syncNowWaitsForSyncToFinish() async throws {
+    func syncNowWaitsForSyncToFinish() async {
         let engine = MockSyncEngine()
-
-        let scheduler = SyncScheduler(
-            syncEngine: engine
-        )
+        let scheduler = SyncScheduler(syncEngine: engine)
 
         var syncNowFinished = false
 
@@ -99,33 +99,22 @@ struct SyncSchedulerTests {
 
         await engine.waitUntilSyncStarts()
 
-        #expect(
-            engine.syncCallCount == 1
-        )
-
-        #expect(
-            syncNowFinished == false
-        )
+        #expect(engine.syncCallCount == 1)
+        #expect(syncNowFinished == false)
 
         engine.finishSync()
 
         await task.value
 
-        #expect(
-            syncNowFinished == true
-        )
+        #expect(syncNowFinished == true)
     }
 
     @Test
-    func syncNowWaitsForExistingScheduledSync() async throws {
+    func syncNowWaitsForExistingScheduledSync() async {
         let engine = MockSyncEngine()
-
-        let scheduler = SyncScheduler(
-            syncEngine: engine
-        )
+        let scheduler = SyncScheduler(syncEngine: engine)
 
         scheduler.scheduleSync()
-
         await engine.waitUntilSyncStarts()
 
         var syncNowFinished = false
@@ -137,34 +126,20 @@ struct SyncSchedulerTests {
 
         await Task.yield()
 
-        #expect(
-            engine.syncCallCount == 1
-        )
-
-        #expect(
-            syncNowFinished == false
-        )
+        #expect(engine.syncCallCount == 1)
+        #expect(syncNowFinished == false)
 
         engine.finishSync()
-
         await task.value
 
-        #expect(
-            engine.syncCallCount == 1
-        )
-
-        #expect(
-            syncNowFinished == true
-        )
+        #expect(engine.syncCallCount == 1)
+        #expect(syncNowFinished == true)
     }
 
     @Test
-    func schedulerCanPerformAnotherSyncAfterPreviousSyncCompletes() async throws {
+    func schedulerCanPerformAnotherSyncAfterPreviousSyncCompletes() async {
         let engine = MockSyncEngine()
-
-        let scheduler = SyncScheduler(
-            syncEngine: engine
-        )
+        let scheduler = SyncScheduler(syncEngine: engine)
 
         let firstTask = Task {
             await scheduler.syncNow()
@@ -172,9 +147,7 @@ struct SyncSchedulerTests {
 
         await engine.waitUntilSyncStarts()
 
-        #expect(
-            engine.syncCallCount == 1
-        )
+        #expect(engine.syncCallCount == 1)
 
         engine.finishSync()
 
@@ -184,11 +157,9 @@ struct SyncSchedulerTests {
             await scheduler.syncNow()
         }
 
-        await engine.waitUntilSyncStarts()
+        await engine.waitUntilSyncCallCount(2)
 
-        #expect(
-            engine.syncCallCount == 2
-        )
+        #expect(engine.syncCallCount == 2)
 
         engine.finishSync()
 
@@ -201,12 +172,18 @@ struct SyncSchedulerTests {
 @MainActor
 private final class MockSyncEngine: SyncEngineProtocol {
 
-    var syncCallCount = 0
+    private(set) var syncCallCount = 0
+    private(set) var isSyncing = false
 
     private var syncContinuation: CheckedContinuation<Void, Never>?
     private var syncStartedContinuation: CheckedContinuation<Void, Never>?
 
-    private(set) var isSyncing = false
+    private var syncCallCountContinuations: [
+        (
+            expectedCount: Int,
+            continuation: CheckedContinuation<Void, Never>
+        )
+    ] = []
 
     func sync() async {
         syncCallCount += 1
@@ -214,6 +191,8 @@ private final class MockSyncEngine: SyncEngineProtocol {
 
         syncStartedContinuation?.resume()
         syncStartedContinuation = nil
+
+        resumeSyncCallCountWaiters()
 
         await withCheckedContinuation { continuation in
             syncContinuation = continuation
@@ -232,8 +211,37 @@ private final class MockSyncEngine: SyncEngineProtocol {
         }
     }
 
+    func waitUntilSyncCallCount(_ expectedCount: Int) async {
+        if syncCallCount >= expectedCount {
+            return
+        }
+
+        await withCheckedContinuation { continuation in
+            syncCallCountContinuations.append(
+                (
+                    expectedCount: expectedCount,
+                    continuation: continuation
+                )
+            )
+        }
+    }
+
     func finishSync() {
         syncContinuation?.resume()
         syncContinuation = nil
+    }
+
+    private func resumeSyncCallCountWaiters() {
+        let readyWaiters = syncCallCountContinuations.filter {
+            syncCallCount >= $0.expectedCount
+        }
+
+        syncCallCountContinuations.removeAll {
+            syncCallCount >= $0.expectedCount
+        }
+
+        for waiter in readyWaiters {
+            waiter.continuation.resume()
+        }
     }
 }
