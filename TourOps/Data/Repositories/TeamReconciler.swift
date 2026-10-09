@@ -2,14 +2,11 @@
 //  TeamReconciler.swift
 //  TourOps
 //
-//  Created by Damoon saber on 7/10/1405 AP.
-//
 
 import Foundation
 
 @MainActor
 final class TeamReconciler {
-
     private let teamRepository: SwiftDataTeamRepository
     private let syncOperationRepository: SyncOperationRepositoryProtocol
 
@@ -32,6 +29,10 @@ final class TeamReconciler {
             remoteTeams.map(\.id)
         )
 
+        let shouldApplyRemoteDeletions =
+            !remoteTeams.isEmpty || localTeams.isEmpty
+
+        // Remote teams
         for remoteTeam in remoteTeams {
             let operations = try await syncOperationRepository.fetchOperations(
                 forEntityID: remoteTeam.id
@@ -46,7 +47,6 @@ final class TeamReconciler {
                 if !hasBlockingDelete {
                     try teamRepository.stageCreateTeam(remoteTeam)
                 }
-
                 continue
             }
 
@@ -54,7 +54,6 @@ final class TeamReconciler {
                 switch $0.status {
                 case .pending, .processing, .conflict:
                     true
-
                 case .failed:
                     false
                 }
@@ -71,30 +70,30 @@ final class TeamReconciler {
             try teamRepository.stageApplyRemoteTeam(remoteTeam)
         }
 
-        for localTeam in localTeams {
-            guard !remoteTeamIDs.contains(localTeam.id) else {
-                continue
-            }
-
-            let operations = try await syncOperationRepository.fetchOperations(
-                forEntityID: localTeam.id
-            )
-
-            let hasBlockingOperation = operations.contains {
-                switch $0.status {
-                case .pending, .processing, .conflict:
-                    true
-
-                case .failed:
-                    false
+        // Local teams missing from remote
+        if shouldApplyRemoteDeletions {
+            for localTeam in localTeams {
+                guard !remoteTeamIDs.contains(localTeam.id) else {
+                    continue
                 }
-            }
 
-            if hasBlockingOperation {
-                continue
-            }
+                let operations = try await syncOperationRepository.fetchOperations(
+                    forEntityID: localTeam.id
+                )
 
-            try teamRepository.stageDeleteTeam(id: localTeam.id)
+                let hasBlockingOperation = operations.contains {
+                    switch $0.status {
+                    case .pending, .processing, .conflict, .failed:
+                        true
+                    }
+                }
+
+                if hasBlockingOperation {
+                    continue
+                }
+
+                try teamRepository.stageDeleteTeam(id: localTeam.id)
+            }
         }
 
         try teamRepository.save()

@@ -8,6 +8,7 @@
 import Foundation
 import Testing
 import SwiftData
+
 @testable import TourOps
 
 @MainActor
@@ -46,7 +47,6 @@ struct ShowReconcilerTests {
 
     @Test
     func newRemoteShowIsCreatedLocally() async throws {
-
         let remoteShow = makeShow()
 
         let reconciler = ShowReconciler(
@@ -67,7 +67,6 @@ struct ShowReconcilerTests {
 
     @Test
     func newerRemoteShowUpdatesLocalShow() async throws {
-
         let localShow = makeShow(
             version: 1,
             name: "Original Show"
@@ -101,7 +100,6 @@ struct ShowReconcilerTests {
 
     @Test
     func sameVersionRemoteShowDoesNotUpdateLocalShow() async throws {
-
         let localShow = makeShow(
             version: 2,
             name: "Local Show"
@@ -135,7 +133,6 @@ struct ShowReconcilerTests {
 
     @Test
     func olderRemoteShowDoesNotUpdateLocalShow() async throws {
-
         let localShow = makeShow(
             version: 3,
             name: "Local Show"
@@ -171,7 +168,6 @@ struct ShowReconcilerTests {
 
     @Test
     func pendingOperationPreservesLocalShow() async throws {
-
         let localShow = makeShow(
             version: 1,
             name: "Local Show"
@@ -213,7 +209,6 @@ struct ShowReconcilerTests {
 
     @Test
     func processingOperationPreservesLocalShow() async throws {
-
         let localShow = makeShow(
             version: 1,
             name: "Local Show"
@@ -255,7 +250,6 @@ struct ShowReconcilerTests {
 
     @Test
     func conflictOperationPreservesLocalShow() async throws {
-
         let localShow = makeShow(
             version: 1,
             name: "Local Show"
@@ -297,7 +291,6 @@ struct ShowReconcilerTests {
 
     @Test
     func failedOperationAllowsRemoteShowToWin() async throws {
-
         let localShow = makeShow(
             version: 1,
             name: "Local Show"
@@ -340,9 +333,11 @@ struct ShowReconcilerTests {
     // MARK: - Local Shows Missing From Remote
 
     @Test
-    func localOnlyShowIsDeleted() async throws {
-
-        let localShow = makeShow()
+    func emptyRemoteResponsePreservesLocalShow() async throws {
+        let localShow = makeShow(
+            version: 1,
+            name: "Local Show"
+        )
 
         try await showRepository.createShow(localShow)
 
@@ -355,14 +350,49 @@ struct ShowReconcilerTests {
             remoteShows: []
         )
 
-        let shows = try await showRepository.fetchShows()
+        let fetchedShow = try await showRepository.fetchShow(
+            id: localShow.id
+        )
 
-        #expect(shows.isEmpty)
+        #expect(fetchedShow == localShow)
+    }
+
+    @Test
+    func localOnlyShowIsDeletedWhenRemoteContainsOtherShows() async throws {
+        let localShow = makeShow(
+            version: 1,
+            name: "Local Show"
+        )
+
+        try await showRepository.createShow(localShow)
+
+        let remoteShow = makeShow(
+            version: 1,
+            name: "Remote Show"
+        )
+
+        let reconciler = ShowReconciler(
+            showRepository: showRepository,
+            syncOperationRepository: syncOperationRepository
+        )
+
+        try await reconciler.reconcile(
+            remoteShows: [remoteShow]
+        )
+
+        await #expect(throws: RepositoryError.notFound) {
+            try await showRepository.fetchShow(id: localShow.id)
+        }
+
+        let fetchedRemoteShow = try await showRepository.fetchShow(
+            id: remoteShow.id
+        )
+
+        #expect(fetchedRemoteShow == remoteShow)
     }
 
     @Test
     func pendingOperationPreservesLocalOnlyShow() async throws {
-
         let localShow = makeShow()
 
         try await showRepository.createShow(localShow)
@@ -393,7 +423,6 @@ struct ShowReconcilerTests {
 
     @Test
     func processingOperationPreservesLocalOnlyShow() async throws {
-
         let localShow = makeShow()
 
         try await showRepository.createShow(localShow)
@@ -424,7 +453,6 @@ struct ShowReconcilerTests {
 
     @Test
     func conflictOperationPreservesLocalOnlyShow() async throws {
-
         let localShow = makeShow()
 
         try await showRepository.createShow(localShow)
@@ -454,16 +482,18 @@ struct ShowReconcilerTests {
     }
 
     @Test
-    func failedOperationDoesNotPreserveLocalOnlyShow() async throws {
-
-        let localShow = makeShow()
+    func failedCreateOperationPreservesLocalOnlyShow() async throws {
+        let localShow = makeShow(
+            version: 2,
+            name: "Local Show"
+        )
 
         try await showRepository.createShow(localShow)
 
         try await syncOperationRepository.add(
             makeOperation(
                 entityID: localShow.id,
-                operationType: .update,
+                operationType: .create,
                 status: .failed
             )
         )
@@ -477,16 +507,17 @@ struct ShowReconcilerTests {
             remoteShows: []
         )
 
-        let shows = try await showRepository.fetchShows()
+        let fetchedShow = try await showRepository.fetchShow(
+            id: localShow.id
+        )
 
-        #expect(shows.isEmpty)
+        #expect(fetchedShow == localShow)
     }
 
     // MARK: - Pending Delete Resurrection
 
     @Test
     func remoteShowWithPendingDeleteIsNotRecreated() async throws {
-
         let show = makeShow()
 
         try await syncOperationRepository.add(
@@ -549,3 +580,4 @@ struct ShowReconcilerTests {
         )
     }
 }
+

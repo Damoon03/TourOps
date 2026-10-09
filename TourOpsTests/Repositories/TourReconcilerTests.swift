@@ -8,6 +8,7 @@
 import Foundation
 import Testing
 import SwiftData
+
 @testable import TourOps
 
 @MainActor
@@ -288,7 +289,7 @@ struct TourReconcilerTests {
     // MARK: - Remote Deletion
 
     @Test
-    func localOnlyTourIsDeletedWhenThereIsNoOperation() async throws {
+    func emptyRemoteResponsePreservesLocalTour() async throws {
         let localTour = makeTour(
             name: "Local Tour",
             version: 1
@@ -300,9 +301,40 @@ struct TourReconcilerTests {
             remoteTours: []
         )
 
+        let fetchedTour = try await tourRepository.fetchTour(
+            id: localTour.id
+        )
+
+        #expect(fetchedTour == localTour)
+    }
+
+    @Test
+    func localOnlyTourIsDeletedWhenRemoteContainsOtherTours() async throws {
+        let localTour = makeTour(
+            name: "Local Tour",
+            version: 1
+        )
+
+        try await tourRepository.createTour(localTour)
+
+        let remoteTour = makeTour(
+            name: "Remote Tour",
+            version: 1
+        )
+
+        try await reconciler.reconcile(
+            remoteTours: [remoteTour]
+        )
+
         await #expect(throws: RepositoryError.notFound) {
             try await tourRepository.fetchTour(id: localTour.id)
         }
+
+        let fetchedRemoteTour = try await tourRepository.fetchTour(
+            id: remoteTour.id
+        )
+
+        #expect(fetchedRemoteTour == remoteTour)
     }
 
     @Test
@@ -390,10 +422,10 @@ struct TourReconcilerTests {
     }
 
     @Test
-    func failedOperationDeletesLocalOnlyTour() async throws {
+    func failedCreateOperationPreservesLocalOnlyTour() async throws {
         let localTour = makeTour(
             name: "Local Tour",
-            version: 1
+            version: 2
         )
 
         try await tourRepository.createTour(localTour)
@@ -401,7 +433,7 @@ struct TourReconcilerTests {
         syncOperationRepository.operations = [
             makeOperation(
                 entityID: localTour.id,
-                operationType: .update,
+                operationType: .create,
                 status: .failed
             )
         ]
@@ -410,9 +442,11 @@ struct TourReconcilerTests {
             remoteTours: []
         )
 
-        await #expect(throws: RepositoryError.notFound) {
-            try await tourRepository.fetchTour(id: localTour.id)
-        }
+        let fetchedTour = try await tourRepository.fetchTour(
+            id: localTour.id
+        )
+
+        #expect(fetchedTour == localTour)
     }
 
     // MARK: - Helpers

@@ -28,9 +28,12 @@ final class TourReconciler {
             uniqueKeysWithValues: localTours.map { ($0.id, $0) }
         )
 
-        let remoteTourIDs = Set(
-            remoteTours.map(\.id)
-        )
+        let remoteTourIDs = Set(remoteTours.map(\.id))
+
+        // An empty remote response is not sufficient evidence
+        // that all local tours have been deleted remotely.
+        let shouldApplyRemoteDeletions =
+            !remoteTours.isEmpty || localTours.isEmpty
 
         // Remote tours
         for remoteTour in remoteTours {
@@ -47,7 +50,6 @@ final class TourReconciler {
                 if !hasBlockingDelete {
                     try tourRepository.stageCreateTour(remoteTour)
                 }
-
                 continue
             }
 
@@ -55,7 +57,6 @@ final class TourReconciler {
                 switch $0.status {
                 case .pending, .processing, .conflict:
                     true
-
                 case .failed:
                     false
                 }
@@ -73,30 +74,29 @@ final class TourReconciler {
         }
 
         // Local tours missing from remote
-        for localTour in localTours {
-            guard !remoteTourIDs.contains(localTour.id) else {
-                continue
-            }
-
-            let operations = try await syncOperationRepository.fetchOperations(
-                forEntityID: localTour.id
-            )
-
-            let hasBlockingOperation = operations.contains {
-                switch $0.status {
-                case .pending, .processing, .conflict:
-                    true
-
-                case .failed:
-                    false
+        if shouldApplyRemoteDeletions {
+            for localTour in localTours {
+                guard !remoteTourIDs.contains(localTour.id) else {
+                    continue
                 }
-            }
 
-            if hasBlockingOperation {
-                continue
-            }
+                let operations = try await syncOperationRepository.fetchOperations(
+                    forEntityID: localTour.id
+                )
 
-            try tourRepository.stageDeleteTour(id: localTour.id)
+                let hasBlockingOperation = operations.contains {
+                    switch $0.status {
+                    case .pending, .processing, .conflict, .failed:
+                        true
+                    }
+                }
+
+                if hasBlockingOperation {
+                    continue
+                }
+
+                try tourRepository.stageDeleteTour(id: localTour.id)
+            }
         }
 
         try tourRepository.save()

@@ -2,17 +2,15 @@
 //  TeamReconcilerTests.swift
 //  TourOpsTests
 //
-//  Created by Damoon saber on 7/10/1405 AP.
-//
 
 import Foundation
 import Testing
 import SwiftData
+
 @testable import TourOps
 
 @MainActor
 struct TeamReconcilerTests {
-
     private let container: ModelContainer
 
     init() throws {
@@ -383,7 +381,7 @@ struct TeamReconcilerTests {
     // MARK: - Local-only
 
     @Test
-    func localOnlyTeamIsDeleted() async throws {
+    func emptyRemoteResponsePreservesLocalTeam() async throws {
         let localTeam = makeTeam(
             name: "Local Band",
             version: 2
@@ -395,9 +393,11 @@ struct TeamReconcilerTests {
             remoteTeams: []
         )
 
-        await #expect(throws: RepositoryError.notFound) {
-            try await teamRepository.fetchTeam(id: localTeam.id)
-        }
+        let fetchedTeam = try await teamRepository.fetchTeam(
+            id: localTeam.id
+        )
+
+        #expect(fetchedTeam == localTeam)
     }
 
     @Test
@@ -485,7 +485,7 @@ struct TeamReconcilerTests {
     }
 
     @Test
-    func failedOperationDoesNotPreserveLocalOnlyTeam() async throws {
+    func failedOperationPreservesLocalOnlyTeam() async throws {
         let localTeam = makeTeam(
             name: "Local Band",
             version: 2
@@ -505,10 +505,13 @@ struct TeamReconcilerTests {
             remoteTeams: []
         )
 
-        await #expect(throws: RepositoryError.notFound) {
-            try await teamRepository.fetchTeam(id: localTeam.id)
-        }
+        let fetchedTeam = try await teamRepository.fetchTeam(
+            id: localTeam.id
+        )
+
+        #expect(fetchedTeam == localTeam)
     }
+
     // MARK: - Helpers
 
     private func makeTeam(
