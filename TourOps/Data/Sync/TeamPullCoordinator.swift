@@ -21,11 +21,33 @@ final class TeamPullCoordinator {
         self.reconciler = reconciler
     }
 
-    func pullTeams() async throws {
-        let remoteTeams = try await pullService.fetchTeams()
+    private var pullTask: Task<Void, Error>?
+    private var pullRequested = false
 
-        try await reconciler.reconcile(
-            remoteTeams: remoteTeams
-        )
+    func pullTeams() async throws {
+        if let pullTask {
+            pullRequested = true
+            try await pullTask.value
+            return
+        }
+
+        let task = Task { @MainActor in
+            defer {
+                self.pullTask = nil
+            }
+
+            repeat {
+                self.pullRequested = false
+
+                let remoteTeams = try await self.pullService.fetchTeams()
+
+                try await self.reconciler.reconcile(
+                    remoteTeams: remoteTeams
+                )
+            } while self.pullRequested
+        }
+
+        pullTask = task
+        try await task.value
     }
 }
