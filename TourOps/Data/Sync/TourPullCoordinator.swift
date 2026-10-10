@@ -21,11 +21,33 @@ final class TourPullCoordinator {
         self.reconciler = reconciler
     }
 
-    func pullTours() async throws {
-        let remoteTours = try await pullService.fetchTours()
+    private var pullTask: Task<Void, Error>?
+    private var pullRequested = false
 
-        try await reconciler.reconcile(
-            remoteTours: remoteTours
-        )
+    func pullTours() async throws {
+        if let pullTask {
+            pullRequested = true
+            try await pullTask.value
+            return
+        }
+
+        let task = Task { @MainActor in
+            defer {
+                self.pullTask = nil
+            }
+
+            repeat {
+                self.pullRequested = false
+
+                let remoteTours = try await self.pullService.fetchTours()
+
+                try await self.reconciler.reconcile(
+                    remoteTours: remoteTours
+                )
+            } while self.pullRequested
+        }
+
+        pullTask = task
+        try await task.value
     }
 }
