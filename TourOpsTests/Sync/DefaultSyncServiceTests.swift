@@ -40,14 +40,35 @@ struct DefaultSyncServiceTests {
         }
     }
 
+    @Test
+    func executeTreatsCreateHTTP409AsSuccessfulDuplicate() async throws {
+        let apiClient = MockAPIClient()
+        let requestBuilder = MockSyncRequestBuilder()
+
+        apiClient.error = APIClientError.httpError(
+            statusCode: 409
+        )
+
+        let service = DefaultSyncService(
+            apiClient: apiClient,
+            requestBuilder: requestBuilder
+        )
+
+        let operation = makeOperation(type: .create)
+
+        try await service.execute(operation)
+    }
+
     // MARK: - Helpers
 
-    private func makeOperation() -> SyncOperation {
+    private func makeOperation(
+        type: SyncOperationType = .update
+    ) -> SyncOperation {
         SyncOperation(
             id: UUID(),
             entityID: UUID(),
             entityType: .show,
-            operationType: .update,
+            operationType: type,
             payload: nil,
             version: 2,
             createdAt: Date(),

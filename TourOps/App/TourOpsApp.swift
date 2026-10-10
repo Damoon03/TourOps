@@ -217,14 +217,14 @@ struct TourOpsApp: App {
                             try await teamPullCoordinator.pullTeams()
                             didAnyPullSucceed = true
                         } catch {
-                            // Team pull failed.
+                            print("TEAM PULL FAILED: \(error)")
                         }
 
                         do {
                             try await tourPullCoordinator.pullTours()
                             didAnyPullSucceed = true
                         } catch {
-                            // Tour pull failed.
+                            print("TOUR PULL FAILED: \(error)")
                         }
 
                         do {
@@ -253,14 +253,14 @@ struct TourOpsApp: App {
                             try await teamPullCoordinator.pullTeams()
                             didAnyPullSucceed = true
                         } catch {
-                            // Team pull failed.
+                            print("TEAM PULL FAILED: \(error)")
                         }
 
                         do {
                             try await tourPullCoordinator.pullTours()
                             didAnyPullSucceed = true
                         } catch {
-                            // Tour pull failed.
+                            print("TOUR PULL FAILED: \(error)")
                         }
                         do {
                             try await showPullCoordinator.pullShows()

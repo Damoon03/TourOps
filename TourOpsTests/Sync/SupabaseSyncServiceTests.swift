@@ -107,6 +107,66 @@ struct SupabaseSyncServiceTests {
             )
         }
     }
+
+    @Test
+    func createTreatsHTTP409AsSuccessfulDuplicate() async throws {
+
+        let apiClient = MockAPIClient(
+            response: .http409
+        )
+
+        let requestBuilder = MockSyncRequestBuilder()
+
+        let authService = MockAuthService()
+
+        let service = SupabaseSyncService(
+            apiClient: apiClient,
+            requestBuilder: requestBuilder,
+            authService: authService
+        )
+
+        let operation = makeCreateOperation()
+
+        try await service.execute(operation)
+
+        #expect(apiClient.sendCallCount == 1)
+        #expect(requestBuilder.buildCallCount == 1)
+    }
+
+    @Test
+    func deleteThrowsConflictWhenServerReturnsEmptyRepresentation() async {
+
+        let apiClient = MockAPIClient(
+            response: .empty
+        )
+
+        let requestBuilder = MockSyncRequestBuilder()
+
+        let authService = MockAuthService()
+
+        let service = SupabaseSyncService(
+            apiClient: apiClient,
+            requestBuilder: requestBuilder,
+            authService: authService
+        )
+
+        let operation = makeDeleteOperation()
+
+        do {
+            try await service.execute(operation)
+
+            Issue.record(
+                "Expected SyncError.conflict"
+            )
+
+        } catch SyncError.conflict {
+            // Expected.
+        } catch {
+            Issue.record(
+                "Expected SyncError.conflict, got \(error)"
+            )
+        }
+    }
 }
 
 private extension SupabaseSyncServiceTests {
@@ -129,6 +189,48 @@ private extension SupabaseSyncServiceTests {
                 "version": 2
             }
             """,
+            version: 2,
+            createdAt: Date(),
+            status: .pending,
+            retryCount: 0
+        )
+    }
+
+    func makeCreateOperation() -> SyncOperation {
+
+        let entityID = UUID()
+
+        return SyncOperation(
+            id: UUID(),
+            entityID: entityID,
+            entityType: .team,
+            operationType: .create,
+            payload: """
+            {
+                "id": "\(entityID.uuidString)",
+                "name": "Northbound",
+                "genre": "Rock",
+                "country": "Iran",
+                "city": "Rasht",
+                "created_at": "2026-01-01T00:00:00Z",
+                "version": 1
+            }
+            """,
+            version: 1,
+            createdAt: Date(),
+            status: .pending,
+            retryCount: 0
+        )
+    }
+
+    func makeDeleteOperation() -> SyncOperation {
+
+        SyncOperation(
+            id: UUID(),
+            entityID: UUID(),
+            entityType: .team,
+            operationType: .delete,
+            payload: nil,
             version: 2,
             createdAt: Date(),
             status: .pending,

@@ -33,6 +33,10 @@ final class DefaultSyncService: SyncServiceProtocol {
             )
         } catch APIClientError.httpError(let statusCode)
                     where statusCode == 409 {
+            if operation.operationType == .create {
+                return
+            }
+
             throw SyncError.conflict
         }
     }

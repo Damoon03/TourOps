@@ -59,7 +59,17 @@ struct SyncOperationReducer {
             return nil
 
         case (.update, .update):
-            return second
+            return SyncOperation(
+                id: first.id,
+                entityID: first.entityID,
+                entityType: first.entityType,
+                operationType: .update,
+                payload: second.payload,
+                version: first.version,
+                createdAt: first.createdAt,
+                status: first.status,
+                retryCount: first.retryCount
+            )
 
         case (.update, .delete):
             return second

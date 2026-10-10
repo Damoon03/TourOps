@@ -63,7 +63,8 @@ final class SupabaseSyncService: SyncServiceProtocol {
                 responseType: [EmptyResponse].self
             )
 
-            if operation.operationType == .update,
+            if (operation.operationType == .update
+                || operation.operationType == .delete),
                representation.isEmpty {
 
                 throw SyncError.conflict
@@ -71,6 +72,10 @@ final class SupabaseSyncService: SyncServiceProtocol {
 
         } catch APIClientError.httpError(let statusCode)
                     where statusCode == 409 {
+
+            if operation.operationType == .create {
+                return
+            }
 
             throw SyncError.conflict
         }
