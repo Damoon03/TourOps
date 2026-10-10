@@ -14,7 +14,8 @@ struct SyncOperationReducerTests {
     // MARK: - Update + Update
 
     @Test
-    func updateOperationsForSameEntityAreReducedToSingleOperation() {
+    func updateOperationsForSameEntityAreReducedToSingleOperation() throws {
+        
         let reducer = SyncOperationReducer()
         let entityID = UUID()
 
@@ -169,7 +170,7 @@ struct SyncOperationReducerTests {
         let delete = makeOperation(
             entityID: entityID,
             type: .delete,
-            version: 3
+            version: 4
         )
 
         let result = reducer.reduce([
@@ -181,8 +182,10 @@ struct SyncOperationReducerTests {
         #expect(result.first?.operationType == .delete)
         #expect(result.first?.entityID == entityID)
 
-        // The delete operation keeps its own version.
-        #expect(result.first?.version == 3)
+        // The delete operation keeps the original base version.
+        #expect(result.first?.version == 2)
+        #expect(result.first?.id == update.id)
+        #expect(result.first?.createdAt == update.createdAt)
     }
 
     // MARK: - Helpers

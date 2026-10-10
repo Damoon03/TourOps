@@ -72,8 +72,18 @@ struct SyncOperationReducer {
             )
 
         case (.update, .delete):
-            return second
-
+            return SyncOperation(
+                id: first.id,
+                entityID: first.entityID,
+                entityType: first.entityType,
+                operationType: .delete,
+                payload: second.payload,
+                version: first.version,
+                createdAt: first.createdAt,
+                status: first.status,
+                retryCount: first.retryCount
+            )
+            
         default:
             return second
         }
