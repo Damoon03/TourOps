@@ -438,7 +438,11 @@ struct SyncEngineTests {
         )
 
         #expect(
-            service.executedOperations.first?.version == 3
+            service.executedOperations.first?.id == firstUpdate.id
+        )
+
+        #expect(
+            service.executedOperations.first?.version == 1
         )
 
         #expect(
@@ -578,6 +582,112 @@ struct SyncEngineTests {
         )
     }
 
+    @Test
+    func syncRemovesSupersededOperationsBeforeConflictedExecution() async throws {
+        let entityID = UUID()
+
+        let firstUpdate = SyncOperation(
+            id: UUID(),
+            entityID: entityID,
+            entityType: .show,
+            operationType: .update,
+            payload: #"{"name":"First"}"#,
+            version: 1,
+            createdAt: Date(timeIntervalSince1970: 100),
+            status: .pending,
+            retryCount: 0
+        )
+
+        let secondUpdate = SyncOperation(
+            id: UUID(),
+            entityID: entityID,
+            entityType: .show,
+            operationType: .update,
+            payload: #"{"name":"Second"}"#,
+            version: 2,
+            createdAt: Date(timeIntervalSince1970: 200),
+            status: .pending,
+            retryCount: 0
+        )
+
+        let repository = MockSyncOperationRepository(
+            operations: [
+                firstUpdate,
+                secondUpdate
+            ]
+        )
+
+        let service = MockSyncService()
+        service.error = SyncError.conflict
+
+        let engine = makeEngine(
+            repository: repository,
+            service: service
+        )
+
+        await engine.sync()
+
+        #expect(service.executedOperations.count == 1)
+        #expect(service.executedOperations.first?.id == firstUpdate.id)
+        #expect(
+            repository.operations.contains {
+                $0.id == firstUpdate.id && $0.status == .conflict
+            }
+        )
+        #expect(
+            repository.operations.contains {
+                $0.id == secondUpdate.id
+            } == false
+        )
+
+        await engine.sync()
+
+        #expect(service.executedOperations.count == 1)
+    }
+
+    @Test
+    func syncExecutesTeamThenTourThenShow() async throws {
+        let show = makeOperation(
+            entityType: .show,
+            createdAt: Date(timeIntervalSince1970: 100)
+        )
+
+        let tour = makeOperation(
+            entityType: .tour,
+            createdAt: Date(timeIntervalSince1970: 200)
+        )
+
+        let team = makeOperation(
+            entityType: .team,
+            createdAt: Date(timeIntervalSince1970: 300)
+        )
+
+        let repository = MockSyncOperationRepository(
+            operations: [
+                show,
+                tour,
+                team
+            ]
+        )
+
+        let service = MockSyncService()
+
+        let engine = makeEngine(
+            repository: repository,
+            service: service
+        )
+
+        await engine.sync()
+
+        #expect(
+            service.executedOperations.map(\.entityType) == [
+                .team,
+                .tour,
+                .show
+            ]
+        )
+    }
+
     // MARK: - Helpers
 
     private func makeEngine(
@@ -621,16 +731,18 @@ struct SyncEngineTests {
     }
 
     private func makeOperation(
+        entityType: SyncEntityType = .show,
+        createdAt: Date = Date(),
         retryCount: Int = 0
     ) -> SyncOperation {
         SyncOperation(
             id: UUID(),
             entityID: UUID(),
-            entityType: .show,
+            entityType: entityType,
             operationType: .create,
             payload: nil,
             version: 1,
-            createdAt: Date(),
+            createdAt: createdAt,
             status: .pending,
             retryCount: retryCount
         )

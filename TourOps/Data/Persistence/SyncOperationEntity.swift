@@ -31,13 +31,13 @@ final class SyncOperationEntity {
         self.retryCount = operation.retryCount
     }
 
-    func toDomain() -> SyncOperation {
+    func toDomain() -> SyncOperation? {
         guard
             let entityType = SyncEntityType(rawValue: entityType),
             let operationType = SyncOperationType(rawValue: operationType),
             let status = SyncOperationStatus(rawValue: status)
         else {
-            fatalError("Invalid SyncOperationEntity data")
+            return nil
         }
 
         return SyncOperation(

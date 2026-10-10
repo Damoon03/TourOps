@@ -84,7 +84,7 @@ struct SyncEndpointTests {
     }
 
     @Test
-    func deleteDoesNotIncludeVersionFilter() {
+    func deleteIncludesVersionFilter() {
         let id = UUID()
 
         let endpoint = SyncEndpoint.team(
@@ -95,7 +95,7 @@ struct SyncEndpointTests {
 
         #expect(
             endpoint.path ==
-            "/rest/v1/teams?id=eq.\(id.uuidString)"
+            "/rest/v1/teams?id=eq.\(id.uuidString)&version=eq.99"
         )
 
         #expect(endpoint.method == .DELETE)

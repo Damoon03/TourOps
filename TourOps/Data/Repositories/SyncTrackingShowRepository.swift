@@ -76,7 +76,7 @@ final class SyncTrackingShowRepository: ShowRepositoryProtocol {
         try showRepository.stageUpdateShow(show)
 
         let payloadData = try JSONCoding.encoder.encode(
-            ShowMapper.toDTO(show)
+            ShowMapper.toDTO(show, version: show.version + 1)
         )
 
         let payload = String(

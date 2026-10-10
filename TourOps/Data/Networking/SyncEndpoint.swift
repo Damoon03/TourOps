@@ -93,7 +93,7 @@ enum SyncEndpoint: Endpoint {
             return "/rest/v1/\(table)?id=eq.\(id.uuidString)&version=eq.\(version)"
 
         case .delete:
-            return "/rest/v1/\(table)?id=eq.\(id.uuidString)"
+            return "/rest/v1/\(table)?id=eq.\(id.uuidString)&version=eq.\(version)"
         }
     }
 }

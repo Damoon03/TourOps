@@ -59,7 +59,11 @@ final class SyncEngine: SyncEngineProtocol {
                         by: \.entityID
                     )
 
-                for (_, entityOperations) in groupedOperations {
+                let orderedGroups = groupedOperations.values.sorted(
+                    by: Self.compareEntityGroups
+                )
+
+                for entityOperations in orderedGroups {
                     let reducedOperations =
                         operationReducer.reduce(
                             entityOperations
@@ -75,10 +79,21 @@ final class SyncEngine: SyncEngineProtocol {
                         continue
                     }
 
+                    let reducedIDs = Set(
+                        reducedOperations.map(\.id)
+                    )
+
+                    for operation in entityOperations
+                    where !reducedIDs.contains(operation.id) {
+                        try await syncOperationRepository.delete(
+                            operation
+                        )
+                    }
+
                     for operation in reducedOperations {
                         await process(
                             operation,
-                            relatedOperations: entityOperations
+                            relatedOperations: reducedOperations
                         )
                     }
                 }
@@ -174,5 +189,44 @@ final class SyncEngine: SyncEngineProtocol {
         try? await syncOperationRepository.update(
             failedOperation
         )
+    }
+
+    private static func compareEntityGroups(
+        _ lhs: [SyncOperation],
+        _ rhs: [SyncOperation]
+    ) -> Bool {
+        let lhsRank = entityTypeRank(lhs.first?.entityType)
+        let rhsRank = entityTypeRank(rhs.first?.entityType)
+
+        if lhsRank != rhsRank {
+            return lhsRank < rhsRank
+        }
+
+        let lhsDate = lhs.map(\.createdAt).min() ?? .distantFuture
+        let rhsDate = rhs.map(\.createdAt).min() ?? .distantFuture
+
+        if lhsDate != rhsDate {
+            return lhsDate < rhsDate
+        }
+
+        let lhsID = lhs.first?.entityID.uuidString ?? ""
+        let rhsID = rhs.first?.entityID.uuidString ?? ""
+
+        return lhsID < rhsID
+    }
+
+    private static func entityTypeRank(
+        _ entityType: SyncEntityType?
+    ) -> Int {
+        switch entityType {
+        case .team:
+            return 0
+        case .tour:
+            return 1
+        case .show:
+            return 2
+        case nil:
+            return 3
+        }
     }
 }

@@ -22,14 +22,16 @@ struct SyncOperationReducerTests {
             entityID: entityID,
             type: .update,
             version: 1,
-            createdAt: Date(timeIntervalSince1970: 100)
+            createdAt: Date(timeIntervalSince1970: 100),
+            payload: #"{"name":"First Update","version":1}"#
         )
 
         let secondUpdate = makeOperation(
             entityID: entityID,
             type: .update,
             version: 2,
-            createdAt: Date(timeIntervalSince1970: 200)
+            createdAt: Date(timeIntervalSince1970: 200),
+            payload: #"{"name":"Second Update","version":2}"#
         )
 
         let result = reducer.reduce([
@@ -37,12 +39,19 @@ struct SyncOperationReducerTests {
             secondUpdate
         ])
 
-        #expect(result.count == 1)
-        #expect(result.first?.operationType == .update)
-        #expect(result.first?.entityID == entityID)
+        let reduced = try #require(result.first)
 
-        // The latest update should be kept.
-        #expect(result.first?.version == 2)
+        #expect(result.count == 1)
+        #expect(reduced.operationType == .update)
+        #expect(reduced.entityID == entityID)
+        #expect(reduced.id == firstUpdate.id)
+        #expect(reduced.createdAt == firstUpdate.createdAt)
+        #expect(reduced.status == firstUpdate.status)
+        #expect(reduced.retryCount == firstUpdate.retryCount)
+
+        // Keep the original base version and the latest payload.
+        #expect(reduced.version == 1)
+        #expect(reduced.payload == secondUpdate.payload)
     }
 
     // MARK: - Create + Update

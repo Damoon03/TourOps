@@ -164,6 +164,25 @@ struct SwiftDataSyncOperationRepositoryTests {
         #expect(operations.map(\.status) == [.pending, .conflict])
     }
 
+    @Test
+    func fetchPendingOperationsSkipsInvalidPersistedValues() async throws {
+        let (repository, context) = try makeRepository()
+
+        let valid = makeOperation(status: .pending)
+        try await repository.add(valid)
+
+        let invalid = SyncOperationEntity(
+            operation: makeOperation(status: .pending)
+        )
+        invalid.entityType = "not-an-entity"
+        context.insert(invalid)
+        try context.save()
+
+        let operations = try await repository.fetchPendingOperations()
+
+        #expect(operations.map(\.id) == [valid.id])
+    }
+
     // MARK: - Update
 
     @Test

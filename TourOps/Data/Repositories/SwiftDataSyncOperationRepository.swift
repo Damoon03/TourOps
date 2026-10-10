@@ -31,7 +31,7 @@ final class SwiftDataSyncOperationRepository: SyncOperationRepositoryProtocol {
 
         let entities = try modelContext.fetch(descriptor)
 
-        return entities.map { $0.toDomain() }
+        return entities.compactMap { $0.toDomain() }
     }
 
     func fetchPendingOperations() async throws -> [SyncOperation] {
@@ -70,7 +70,7 @@ final class SwiftDataSyncOperationRepository: SyncOperationRepositoryProtocol {
             pendingDescriptor
         )
 
-        return entities.map { $0.toDomain() }
+        return entities.compactMap { $0.toDomain() }
     }
 
     // MARK: - Create

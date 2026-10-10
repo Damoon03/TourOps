@@ -7,6 +7,10 @@ import Foundation
 
 enum TourMapper {
     static func toDTO(_ tour: Tour) -> TourDTO {
+        toDTO(tour, version: tour.version)
+    }
+
+    static func toDTO(_ tour: Tour, version: Int) -> TourDTO {
         TourDTO(
             id: tour.id,
             teamID: tour.teamID,
@@ -14,7 +18,7 @@ enum TourMapper {
             startDate: tour.startDate,
             endDate: tour.endDate,
             createdAt: tour.createdAt,
-            version: tour.version
+            version: version
         )
     }
 

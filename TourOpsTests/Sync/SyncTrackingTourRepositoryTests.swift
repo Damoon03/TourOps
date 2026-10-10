@@ -115,7 +115,6 @@ struct SyncTrackingTourRepositoryTests {
         #expect(operation.entityType == .tour)
         #expect(operation.operationType == .update)
 
-        // The operation is based on version 2.
         #expect(operation.version == tour.version)
 
         #expect(operation.status == .pending)
@@ -138,7 +137,7 @@ struct SyncTrackingTourRepositoryTests {
         #expect(dto.startDate == updatedTour.startDate)
         #expect(dto.endDate == updatedTour.endDate)
         #expect(dto.createdAt == updatedTour.createdAt)
-        #expect(dto.version == updatedTour.version)
+        #expect(dto.version == tour.version + 1)
     }
 
     // MARK: - Delete
@@ -178,7 +177,6 @@ struct SyncTrackingTourRepositoryTests {
         #expect(operation.entityType == .tour)
         #expect(operation.operationType == .delete)
 
-        // Delete is based on the version that existed before deletion.
         #expect(operation.version == tour.version)
 
         #expect(operation.status == .pending)

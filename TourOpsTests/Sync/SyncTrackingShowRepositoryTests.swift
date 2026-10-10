@@ -146,7 +146,6 @@ struct SyncTrackingShowRepositoryTests {
         #expect(shows.first?.venue == "Updated Venue")
         #expect(shows.first?.city == "Los Angeles")
 
-        // The repository increments the local version after the update.
         #expect(shows.first?.version == 3)
 
         #expect(operations.count == 2)
@@ -168,7 +167,6 @@ struct SyncTrackingShowRepositoryTests {
             SyncOperationType.update.rawValue
         )
 
-        // The sync operation is based on version 2.
         #expect(updateOperation?.version == show.version)
 
         #expect(
@@ -196,7 +194,7 @@ struct SyncTrackingShowRepositoryTests {
         #expect(dto.name == updatedShow.name)
         #expect(dto.venue == updatedShow.venue)
         #expect(dto.city == updatedShow.city)
-        #expect(dto.version == updatedShow.version)
+        #expect(dto.version == show.version + 1)
     }
 
     @Test
@@ -261,7 +259,6 @@ struct SyncTrackingShowRepositoryTests {
             SyncOperationType.delete.rawValue
         )
 
-        // Delete is based on the version that existed before deletion.
         #expect(deleteOperation?.version == show.version)
 
         #expect(
