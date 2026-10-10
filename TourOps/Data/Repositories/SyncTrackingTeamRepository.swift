@@ -75,8 +75,11 @@ final class SyncTrackingTeamRepository: TeamRepositoryProtocol {
     func updateTeam(_ team: Team) async throws {
         try teamRepository.stageUpdateTeam(team)
 
+        // operation.version is the expected server base (N).
+        // Payload carries the local post-update version (N+1) so the row advances
+        // even when a DB trigger is not present; triggers that force OLD+1 remain compatible.
         let payloadData = try JSONCoding.encoder.encode(
-            TeamMapper.toDTO(team)
+            TeamMapper.toDTO(team, version: team.version + 1)
         )
 
         let payload = String(

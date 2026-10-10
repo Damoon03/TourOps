@@ -51,7 +51,7 @@ final class SyncTrackingTourRepository: TourRepositoryProtocol {
             data: payloadData,
             encoding: .utf8
         )
-        
+
         let operation = SyncOperation(
             id: UUID(),
             entityID: tour.id,
@@ -76,7 +76,7 @@ final class SyncTrackingTourRepository: TourRepositoryProtocol {
         try tourRepository.stageUpdateTour(tour)
 
         let payloadData = try JSONCoding.encoder.encode(
-            TourMapper.toDTO(tour)
+            TourMapper.toDTO(tour, version: tour.version + 1)
         )
 
         let payload = String(

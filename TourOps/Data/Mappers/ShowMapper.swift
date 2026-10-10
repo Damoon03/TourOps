@@ -7,6 +7,10 @@ import Foundation
 
 enum ShowMapper {
     static func toDTO(_ show: Show) -> ShowDTO {
+        toDTO(show, version: show.version)
+    }
+
+    static func toDTO(_ show: Show, version: Int) -> ShowDTO {
         ShowDTO(
             id: show.id,
             tourID: show.tourID,
@@ -15,7 +19,7 @@ enum ShowMapper {
             city: show.city,
             date: show.date,
             createdAt: show.createdAt,
-            version: show.version
+            version: version
         )
     }
 

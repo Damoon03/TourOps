@@ -7,6 +7,10 @@ import Foundation
 
 enum TeamMapper {
     static func toDTO(_ team: Team) -> TeamDTO {
+        toDTO(team, version: team.version)
+    }
+
+    static func toDTO(_ team: Team, version: Int) -> TeamDTO {
         TeamDTO(
             id: team.id,
             name: team.name,
@@ -14,7 +18,7 @@ enum TeamMapper {
             country: team.country,
             city: team.city,
             createdAt: team.createdAt,
-            version: team.version
+            version: version
         )
     }
 
