@@ -21,11 +21,33 @@ final class ShowPullCoordinator {
         self.reconciler = reconciler
     }
 
-    func pullShows() async throws {
-        let remoteShows = try await pullService.fetchShows()
+    private var pullTask: Task<Void, Error>?
+    private var pullRequested = false
 
-        try await reconciler.reconcile(
-            remoteShows: remoteShows
-        )
+    func pullShows() async throws {
+        if let pullTask {
+            pullRequested = true
+            try await pullTask.value
+            return
+        }
+
+        let task = Task { @MainActor in
+            defer {
+                self.pullTask = nil
+            }
+
+            repeat {
+                self.pullRequested = false
+
+                let remoteShows = try await self.pullService.fetchShows()
+
+                try await self.reconciler.reconcile(
+                    remoteShows: remoteShows
+                )
+            } while self.pullRequested
+        }
+
+        pullTask = task
+        try await task.value
     }
 }
