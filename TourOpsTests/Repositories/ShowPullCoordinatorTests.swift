@@ -77,6 +77,81 @@ struct ShowPullCoordinatorTests {
         #expect(shows.count == 1)
         #expect(shows[0] == expectedShow)
     }
+
+    @Test
+    func overlappingPullRequestsTriggerSequentialPulls() async throws {
+        let service = SuspendingShowPullService(shows: [])
+        let reconciler = ShowReconciler(
+            showRepository: showRepository,
+            syncOperationRepository: syncOperationRepository
+        )
+        let coordinator = ShowPullCoordinator(
+            pullService: service,
+            reconciler: reconciler
+        )
+
+        let firstPull = Task {
+            try await coordinator.pullShows()
+        }
+
+        await service.waitUntilFirstFetchStarts()
+
+        let secondPull = Task {
+            try await coordinator.pullShows()
+        }
+
+        await Task.yield()
+        service.finishFirstFetch()
+
+        try await firstPull.value
+        try await secondPull.value
+
+        #expect(service.fetchShowsCallCount == 2)
+    }
+}
+
+@MainActor
+private final class SuspendingShowPullService: ShowPullServiceProtocol {
+
+    let shows: [Show]
+    private(set) var fetchShowsCallCount = 0
+
+    private var firstFetchContinuation: CheckedContinuation<[Show], Error>?
+    private var firstFetchStartedContinuation: CheckedContinuation<Void, Never>?
+
+    init(shows: [Show]) {
+        self.shows = shows
+    }
+
+    func fetchShows() async throws -> [Show] {
+        fetchShowsCallCount += 1
+
+        guard fetchShowsCallCount == 1 else {
+            return shows
+        }
+
+        firstFetchStartedContinuation?.resume()
+        firstFetchStartedContinuation = nil
+
+        return try await withCheckedThrowingContinuation { continuation in
+            firstFetchContinuation = continuation
+        }
+    }
+
+    func waitUntilFirstFetchStarts() async {
+        if fetchShowsCallCount > 0 {
+            return
+        }
+
+        await withCheckedContinuation { continuation in
+            firstFetchStartedContinuation = continuation
+        }
+    }
+
+    func finishFirstFetch() {
+        firstFetchContinuation?.resume(returning: shows)
+        firstFetchContinuation = nil
+    }
 }
 
 @MainActor
