@@ -9,124 +9,120 @@ import SwiftUI
 
 struct ShowListView: View {
 
-let repository: ShowRepositoryProtocol
-let tourID: UUID
+    let repository: ShowRepositoryProtocol
+    let tourID: UUID
 
-@State private var viewModel: ShowListViewModel
-@State private var showingCreateShow = false
+    @Environment(DataRefreshSignal.self) private var refreshSignal
 
-init(
-    repository: ShowRepositoryProtocol,
-    tourID: UUID
-) {
-    self.repository = repository
-    self.tourID = tourID
+    @State private var viewModel: ShowListViewModel
+    @State private var showingCreateShow = false
 
-    _viewModel = State(
-        initialValue: ShowListViewModel(
-            repository: repository
+    init(
+        repository: ShowRepositoryProtocol,
+        tourID: UUID
+    ) {
+        self.repository = repository
+        self.tourID = tourID
+
+        _viewModel = State(
+            initialValue: ShowListViewModel(
+                repository: repository
+            )
         )
-    )
-}
+    }
 
-private var tourShows: [Show] {
-    viewModel.shows.filter { $0.tourID == tourID }
-}
+    private var tourShows: [Show] {
+        viewModel.shows.filter { $0.tourID == tourID }
+    }
 
-var body: some View {
+    var body: some View {
 
-    Group {
+        Group {
 
-        if viewModel.isLoading {
+            if viewModel.isLoading {
 
-            ProgressView()
+                ProgressView()
 
-        } else if let errorMessage = viewModel.errorMessage {
+            } else if let errorMessage = viewModel.errorMessage {
 
-            ContentUnavailableView(
-                "Unable to Load Shows",
-                systemImage: "exclamationmark.triangle",
-                description: Text(errorMessage)
-            )
-
-        } else if tourShows.isEmpty {
-
-            ContentUnavailableView(
-                "No Shows",
-                systemImage: "music.mic",
-                description: Text(
-                    "Create your first show to get started."
+                ContentUnavailableView(
+                    "Unable to Load Shows",
+                    systemImage: "exclamationmark.triangle",
+                    description: Text(errorMessage)
                 )
-            )
 
-        } else {
+            } else if tourShows.isEmpty {
 
-            List(tourShows, id: \.id) { show in
-                NavigationLink {
-                    ShowDetailView(
-                        showID: show.id,
-                        viewModel: viewModel
+                ContentUnavailableView(
+                    "No Shows",
+                    systemImage: "music.mic",
+                    description: Text(
+                        "Create your first show to get started."
                     )
-                } label: {
-                    VStack(
-                        alignment: .leading,
-                        spacing: 4
-                    ) {
-                        Text(show.name)
-                            .font(.headline)
+                )
 
-                        Text(show.venue)
-                            .font(.subheadline)
+            } else {
 
-                        Text(show.city)
-                            .font(.subheadline)
-
-                        Text(
-                            show.date.formatted(
-                                date: .abbreviated,
-                                time: .omitted
-                            )
+                List(tourShows, id: \.id) { show in
+                    NavigationLink {
+                        ShowDetailView(
+                            showID: show.id,
+                            viewModel: viewModel
                         )
-                        .font(.subheadline)
+                    } label: {
+                        VStack(
+                            alignment: .leading,
+                            spacing: 4
+                        ) {
+                            Text(show.name)
+                                .font(.headline)
+
+                            Text(show.venue)
+                                .font(.subheadline)
+
+                            Text(show.city)
+                                .font(.subheadline)
+
+                            Text(
+                                show.date.formatted(
+                                    date: .abbreviated,
+                                    time: .omitted
+                                )
+                            )
+                            .font(.subheadline)
+                        }
                     }
                 }
             }
-            }
-    }
+        }
+        .navigationTitle("Shows")
+        .toolbar {
 
-    .navigationTitle("Shows")
+            ToolbarItem(
+                placement: .primaryAction
+            ) {
 
-    .toolbar {
+                Button {
 
-        ToolbarItem(
-            placement: .primaryAction
-        ) {
+                    showingCreateShow = true
 
-            Button {
+                } label: {
 
-                showingCreateShow = true
-
-            } label: {
-
-                Image(systemName: "plus")
+                    Image(systemName: "plus")
+                }
             }
         }
+        .sheet(
+            isPresented: $showingCreateShow
+        ) {
+
+            CreateShowView(
+                viewModel: viewModel,
+                tourID: tourID
+            )
+        }
+        .task(id: refreshSignal.generation) {
+            await viewModel.loadShows()
+        }
     }
-
-    .sheet(
-        isPresented: $showingCreateShow
-    ) {
-
-        CreateShowView(
-            viewModel: viewModel,
-            tourID: tourID
-        )
-    }
-
-    .task {
-
-        await viewModel.loadShows()
-    }
-}
-
 }

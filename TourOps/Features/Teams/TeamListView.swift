@@ -12,7 +12,9 @@ struct TeamListView: View {
     let repository: TeamRepositoryProtocol
     let tourRepository: TourRepositoryProtocol
     let showRepository: ShowRepositoryProtocol
-    
+
+    @Environment(DataRefreshSignal.self) private var refreshSignal
+
     @State private var viewModel: TeamListViewModel
     @State private var showingCreateTeam = false
 
@@ -20,7 +22,6 @@ struct TeamListView: View {
         repository: TeamRepositoryProtocol,
         tourRepository: TourRepositoryProtocol,
         showRepository: ShowRepositoryProtocol
-        
     ) {
         self.repository = repository
         self.tourRepository = tourRepository
@@ -86,7 +87,7 @@ struct TeamListView: View {
             .sheet(isPresented: $showingCreateTeam) {
                 CreateTeamView(viewModel: viewModel)
             }
-            .task {
+            .task(id: refreshSignal.generation) {
                 await viewModel.loadTeams()
             }
         }

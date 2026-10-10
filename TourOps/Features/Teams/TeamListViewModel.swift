@@ -23,13 +23,17 @@ final class TeamListViewModel {
     }
 
     func loadTeams() async {
-        isLoading = true
+        let shouldShowLoading = teams.isEmpty
+
+        isLoading = shouldShowLoading
         errorMessage = nil
 
         do {
             teams = try await repository.fetchTeams()
         } catch {
-            errorMessage = error.localizedDescription
+            if teams.isEmpty {
+                errorMessage = error.localizedDescription
+            }
         }
 
         isLoading = false

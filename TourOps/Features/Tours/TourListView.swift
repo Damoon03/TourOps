@@ -9,124 +9,120 @@ import SwiftUI
 
 struct TourListView: View {
 
-let repository: TourRepositoryProtocol
-let teamID: UUID
-let showRepository: ShowRepositoryProtocol
+    let repository: TourRepositoryProtocol
+    let teamID: UUID
+    let showRepository: ShowRepositoryProtocol
 
-@State private var viewModel: TourListViewModel
-@State private var showingCreateTour = false
+    @Environment(DataRefreshSignal.self) private var refreshSignal
 
-init(
-    repository: TourRepositoryProtocol,
-    teamID: UUID,
-    showRepository: ShowRepositoryProtocol
-) {
-    self.repository = repository
-    self.teamID = teamID
-    self.showRepository = showRepository
+    @State private var viewModel: TourListViewModel
+    @State private var showingCreateTour = false
 
-    _viewModel = State(
-        initialValue: TourListViewModel(
-            repository: repository
+    init(
+        repository: TourRepositoryProtocol,
+        teamID: UUID,
+        showRepository: ShowRepositoryProtocol
+    ) {
+        self.repository = repository
+        self.teamID = teamID
+        self.showRepository = showRepository
+
+        _viewModel = State(
+            initialValue: TourListViewModel(
+                repository: repository
+            )
         )
-    )
-}
+    }
 
-private var teamTours: [Tour] {
-    viewModel.tours.filter { $0.teamID == teamID }
-}
+    private var teamTours: [Tour] {
+        viewModel.tours.filter { $0.teamID == teamID }
+    }
 
-var body: some View {
+    var body: some View {
 
-    Group {
+        Group {
 
-        if viewModel.isLoading {
+            if viewModel.isLoading {
 
-            ProgressView()
+                ProgressView()
 
-        } else if let errorMessage = viewModel.errorMessage {
+            } else if let errorMessage = viewModel.errorMessage {
 
-            ContentUnavailableView(
-                "Unable to Load Tours",
-                systemImage: "exclamationmark.triangle",
-                description: Text(errorMessage)
-            )
-
-        } else if teamTours.isEmpty {
-
-            ContentUnavailableView(
-                "No Tours",
-                systemImage: "music.note.list",
-                description: Text(
-                    "Create your first tour to get started."
+                ContentUnavailableView(
+                    "Unable to Load Tours",
+                    systemImage: "exclamationmark.triangle",
+                    description: Text(errorMessage)
                 )
-            )
 
-        } else {
+            } else if teamTours.isEmpty {
 
-            List(teamTours) { tour in
-
-                NavigationLink {
-
-                    TourDetailView(
-                        tourID: tour.id,
-                        viewModel: viewModel,
-                        showRepository: showRepository
+                ContentUnavailableView(
+                    "No Tours",
+                    systemImage: "music.note.list",
+                    description: Text(
+                        "Create your first tour to get started."
                     )
+                )
 
-                } label: {
+            } else {
 
-                    VStack(
-                        alignment: .leading,
-                        spacing: 4
-                    ) {
+                List(teamTours) { tour in
 
-                        Text(tour.name)
-                            .font(.headline)
+                    NavigationLink {
 
-                        Text(
-                            "\(tour.startDate.formatted(date: .abbreviated, time: .omitted)) – \(tour.endDate.formatted(date: .abbreviated, time: .omitted))"
+                        TourDetailView(
+                            tourID: tour.id,
+                            viewModel: viewModel,
+                            showRepository: showRepository
                         )
-                        .font(.subheadline)
+
+                    } label: {
+
+                        VStack(
+                            alignment: .leading,
+                            spacing: 4
+                        ) {
+
+                            Text(tour.name)
+                                .font(.headline)
+
+                            Text(
+                                "\(tour.startDate.formatted(date: .abbreviated, time: .omitted)) – \(tour.endDate.formatted(date: .abbreviated, time: .omitted))"
+                            )
+                            .font(.subheadline)
+                        }
                     }
                 }
             }
         }
-    }
+        .navigationTitle("Tours")
+        .toolbar {
 
-    .navigationTitle("Tours")
+            ToolbarItem(
+                placement: .primaryAction
+            ) {
 
-    .toolbar {
+                Button {
 
-        ToolbarItem(
-            placement: .primaryAction
-        ) {
+                    showingCreateTour = true
 
-            Button {
+                } label: {
 
-                showingCreateTour = true
-
-            } label: {
-
-                Image(systemName: "plus")
+                    Image(systemName: "plus")
+                }
             }
         }
+        .sheet(
+            isPresented: $showingCreateTour
+        ) {
+
+            CreateTourView(
+                viewModel: viewModel,
+                teamID: teamID
+            )
+        }
+        .task(id: refreshSignal.generation) {
+            await viewModel.loadTours()
+        }
     }
-
-    .sheet(
-        isPresented: $showingCreateTour
-    ) {
-
-        CreateTourView(
-            viewModel: viewModel,
-            teamID: teamID
-        )
-    }
-
-    .task {
-
-        await viewModel.loadTours()
-    }
-}
-
 }

@@ -22,8 +22,11 @@ struct TourOpsApp: App {
     private let tourPullCoordinator: TourPullCoordinator
     private let authSessionController: AuthSessionController
     private let showPullCoordinator: ShowPullCoordinator
+    private let refreshSignal: DataRefreshSignal
 
     init() {
+
+        self.refreshSignal = DataRefreshSignal()
 
         do {
 
@@ -126,7 +129,7 @@ struct TourOpsApp: App {
                 pullService: tourPullService,
                 reconciler: tourReconciler
             )
-            
+
             let showPullService = SupabaseShowPullService(
                 apiClient: apiClient,
                 authService: authService,
@@ -197,11 +200,10 @@ struct TourOpsApp: App {
                     )
                 }
             }
-
+            .environment(refreshSignal)
             .task {
                 await authSessionController.start()
             }
-
             .onChange(of: authSessionController.state) { _, newState in
 
                 if newState == .signedIn {
@@ -209,13 +211,35 @@ struct TourOpsApp: App {
                     Task {
                         await syncScheduler.syncNow()
 
-                        try? await teamPullCoordinator.pullTeams()
-                        try? await tourPullCoordinator.pullTours()
-                        try? await showPullCoordinator.pullShows()
+                        var didAnyPullSucceed = false
+
+                        do {
+                            try await teamPullCoordinator.pullTeams()
+                            didAnyPullSucceed = true
+                        } catch {
+                            // Team pull failed.
+                        }
+
+                        do {
+                            try await tourPullCoordinator.pullTours()
+                            didAnyPullSucceed = true
+                        } catch {
+                            // Tour pull failed.
+                        }
+
+                        do {
+                            try await showPullCoordinator.pullShows()
+                            didAnyPullSucceed = true
+
+                        } catch {
+                            print("SHOW PULL FAILED: \(error)")
+                        }
+                        if didAnyPullSucceed {
+                            refreshSignal.bump()
+                        }
                     }
                 }
             }
-
             .onChange(of: scenePhase) { _, newPhase in
 
                 if newPhase == .active {
@@ -223,14 +247,35 @@ struct TourOpsApp: App {
                     Task {
                         await syncScheduler.syncNow()
 
-                        try? await teamPullCoordinator.pullTeams()
-                        try? await tourPullCoordinator.pullTours()
-                        try? await showPullCoordinator.pullShows()
+                        var didAnyPullSucceed = false
+
+                        do {
+                            try await teamPullCoordinator.pullTeams()
+                            didAnyPullSucceed = true
+                        } catch {
+                            // Team pull failed.
+                        }
+
+                        do {
+                            try await tourPullCoordinator.pullTours()
+                            didAnyPullSucceed = true
+                        } catch {
+                            // Tour pull failed.
+                        }
+                        do {
+                            try await showPullCoordinator.pullShows()
+                            didAnyPullSucceed = true
+                        } catch {
+                            print("SHOW PULL FAILED: \(error)")
+                        }
+
+                        if didAnyPullSucceed {
+                            refreshSignal.bump()
+                        }
                     }
                 }
             }
         }
-
         .modelContainer(modelContainer)
     }
 }

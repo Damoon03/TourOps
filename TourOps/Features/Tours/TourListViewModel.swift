@@ -23,7 +23,7 @@ final class TourListViewModel {
     }
 
     func loadTours() async {
-        isLoading = true
+        isLoading = tours.isEmpty
         errorMessage = nil
 
         do {
