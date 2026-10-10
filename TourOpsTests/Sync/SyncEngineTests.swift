@@ -451,6 +451,58 @@ struct SyncEngineTests {
     }
 
     @Test
+    func syncPreservesBaseVersionWhenUpdateIsFollowedByDelete() async throws {
+        let entityID = UUID()
+
+        let update = SyncOperation(
+            id: UUID(),
+            entityID: entityID,
+            entityType: .show,
+            operationType: .update,
+            payload: #"{"name":"Updated"}"#,
+            version: 2,
+            createdAt: Date(timeIntervalSince1970: 100),
+            status: .pending,
+            retryCount: 0
+        )
+
+        let delete = SyncOperation(
+            id: UUID(),
+            entityID: entityID,
+            entityType: .show,
+            operationType: .delete,
+            payload: nil,
+            version: 4,
+            createdAt: Date(timeIntervalSince1970: 200),
+            status: .pending,
+            retryCount: 0
+        )
+
+        let repository = MockSyncOperationRepository(
+            operations: [update, delete]
+        )
+        let service = MockSyncService()
+        let engine = makeEngine(
+            repository: repository,
+            service: service
+        )
+
+        await engine.sync()
+
+        #expect(service.executedOperations.count == 1)
+
+        let executedOperation = service.executedOperations.first
+
+        #expect(executedOperation?.operationType == .delete)
+        #expect(executedOperation?.entityID == entityID)
+        #expect(executedOperation?.version == 2)
+        #expect(executedOperation?.id == update.id)
+
+        #expect(repository.operations.isEmpty)
+        #expect(repository.deletedOperations.count == 2)
+    }
+
+    @Test
     func syncRemovesCreateAndDeleteOperationsWithoutExecution() async throws {
         let entityID = UUID()
 
