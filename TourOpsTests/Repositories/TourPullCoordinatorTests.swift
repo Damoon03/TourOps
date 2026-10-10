@@ -68,6 +68,52 @@ struct TourPullCoordinatorTests {
         #expect(fetchedTour == expectedTours[0])
         #expect(pullService.fetchToursCallCount == 1)
     }
+
+    @Test
+    func overlappingPullRequestsTriggerSequentialPulls() async throws {
+        let configuration = ModelConfiguration(
+            isStoredInMemoryOnly: true
+        )
+
+        let container = try ModelContainer(
+            for: TourEntity.self,
+            SyncOperationEntity.self,
+            configurations: configuration
+        )
+
+        let tourRepository = SwiftDataTourRepository(
+            modelContext: container.mainContext
+        )
+
+        let reconciler = TourReconciler(
+            tourRepository: tourRepository,
+            syncOperationRepository: MockSyncOperationRepository()
+        )
+
+        let service = SuspendingTourPullService(tours: [])
+        let coordinator = TourPullCoordinator(
+            pullService: service,
+            reconciler: reconciler
+        )
+
+        let firstPull = Task {
+            try await coordinator.pullTours()
+        }
+
+        await service.waitUntilFirstFetchStarts()
+
+        let secondPull = Task {
+            try await coordinator.pullTours()
+        }
+
+        await Task.yield()
+        service.finishFirstFetch()
+
+        try await firstPull.value
+        try await secondPull.value
+
+        #expect(service.fetchToursCallCount == 2)
+    }
 }
 
 @MainActor
@@ -84,6 +130,50 @@ private final class MockTourPullService: TourPullServiceProtocol {
     func fetchTours() async throws -> [Tour] {
         fetchToursCallCount += 1
         return tours
+    }
+}
+
+@MainActor
+private final class SuspendingTourPullService: TourPullServiceProtocol {
+
+    let tours: [Tour]
+    private(set) var fetchToursCallCount = 0
+
+    private var firstFetchContinuation: CheckedContinuation<[Tour], Error>?
+    private var firstFetchStartedContinuation: CheckedContinuation<Void, Never>?
+
+    init(tours: [Tour]) {
+        self.tours = tours
+    }
+
+    func fetchTours() async throws -> [Tour] {
+        fetchToursCallCount += 1
+
+        guard fetchToursCallCount == 1 else {
+            return tours
+        }
+
+        firstFetchStartedContinuation?.resume()
+        firstFetchStartedContinuation = nil
+
+        return try await withCheckedThrowingContinuation { continuation in
+            firstFetchContinuation = continuation
+        }
+    }
+
+    func waitUntilFirstFetchStarts() async {
+        if fetchToursCallCount > 0 {
+            return
+        }
+
+        await withCheckedContinuation { continuation in
+            firstFetchStartedContinuation = continuation
+        }
+    }
+
+    func finishFirstFetch() {
+        firstFetchContinuation?.resume(returning: tours)
+        firstFetchContinuation = nil
     }
 }
 
