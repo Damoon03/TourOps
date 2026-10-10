@@ -7,9 +7,15 @@
 
 import SwiftUI
 import SwiftData
+import os
 
 @main
 struct TourOpsApp: App {
+
+    private static let pullLogger = Logger(
+        subsystem: "com.tourops.app",
+        category: "PullSync"
+    )
 
     @Environment(\.scenePhase) private var scenePhase
 
@@ -207,75 +213,51 @@ struct TourOpsApp: App {
             .onChange(of: authSessionController.state) { _, newState in
 
                 if newState == .signedIn {
-
                     Task {
-                        await syncScheduler.syncNow()
-
-                        var didAnyPullSucceed = false
-
-                        do {
-                            try await teamPullCoordinator.pullTeams()
-                            didAnyPullSucceed = true
-                        } catch {
-                            print("TEAM PULL FAILED: \(error)")
-                        }
-
-                        do {
-                            try await tourPullCoordinator.pullTours()
-                            didAnyPullSucceed = true
-                        } catch {
-                            print("TOUR PULL FAILED: \(error)")
-                        }
-
-                        do {
-                            try await showPullCoordinator.pullShows()
-                            didAnyPullSucceed = true
-
-                        } catch {
-                            print("SHOW PULL FAILED: \(error)")
-                        }
-                        if didAnyPullSucceed {
-                            refreshSignal.bump()
-                        }
+                        await runPushAndPull()
                     }
                 }
             }
             .onChange(of: scenePhase) { _, newPhase in
 
                 if newPhase == .active {
-
                     Task {
-                        await syncScheduler.syncNow()
-
-                        var didAnyPullSucceed = false
-
-                        do {
-                            try await teamPullCoordinator.pullTeams()
-                            didAnyPullSucceed = true
-                        } catch {
-                            print("TEAM PULL FAILED: \(error)")
-                        }
-
-                        do {
-                            try await tourPullCoordinator.pullTours()
-                            didAnyPullSucceed = true
-                        } catch {
-                            print("TOUR PULL FAILED: \(error)")
-                        }
-                        do {
-                            try await showPullCoordinator.pullShows()
-                            didAnyPullSucceed = true
-                        } catch {
-                            print("SHOW PULL FAILED: \(error)")
-                        }
-
-                        if didAnyPullSucceed {
-                            refreshSignal.bump()
-                        }
+                        await runPushAndPull()
                     }
                 }
             }
         }
         .modelContainer(modelContainer)
+    }
+
+    private func runPushAndPull() async {
+        await syncScheduler.syncNow()
+
+        var didAnyPullSucceed = false
+
+        do {
+            try await teamPullCoordinator.pullTeams()
+            didAnyPullSucceed = true
+        } catch {
+            Self.pullLogger.error("Team pull failed: \(error.localizedDescription, privacy: .public)")
+        }
+
+        do {
+            try await tourPullCoordinator.pullTours()
+            didAnyPullSucceed = true
+        } catch {
+            Self.pullLogger.error("Tour pull failed: \(error.localizedDescription, privacy: .public)")
+        }
+
+        do {
+            try await showPullCoordinator.pullShows()
+            didAnyPullSucceed = true
+        } catch {
+            Self.pullLogger.error("Show pull failed: \(error.localizedDescription, privacy: .public)")
+        }
+
+        if didAnyPullSucceed {
+            refreshSignal.bump()
+        }
     }
 }

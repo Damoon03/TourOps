@@ -115,7 +115,7 @@ struct SyncTrackingTeamRepositoryTests {
         #expect(operation.entityType == .team)
         #expect(operation.operationType == .update)
 
-        // The operation is based on version 2.
+        // Expected server base version for the conditional filter.
         #expect(operation.version == team.version)
 
         #expect(operation.status == .pending)
@@ -138,7 +138,8 @@ struct SyncTrackingTeamRepositoryTests {
         #expect(dto.country == updatedTeam.country)
         #expect(dto.city == updatedTeam.city)
         #expect(dto.createdAt == updatedTeam.createdAt)
-        #expect(dto.version == updatedTeam.version)
+        // Payload carries the local post-update version.
+        #expect(dto.version == team.version + 1)
     }
 
     // MARK: - Delete
