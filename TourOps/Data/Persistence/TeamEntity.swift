@@ -17,6 +17,8 @@ final class TeamEntity {
     var city: String
     var createdAt: Date
     var version: Int = 1
+    var imageData: Data?
+
     init(
         id: UUID,
         name: String,
@@ -24,7 +26,8 @@ final class TeamEntity {
         country: String,
         city: String,
         createdAt: Date,
-        version: Int
+        version: Int,
+        imageData: Data? = nil
     ) {
         self.id = id
         self.name = name
@@ -33,6 +36,7 @@ final class TeamEntity {
         self.city = city
         self.createdAt = createdAt
         self.version = version
+        self.imageData = imageData
     }
 }
 
@@ -45,7 +49,8 @@ extension TeamEntity {
             country: team.country,
             city: team.city,
             createdAt: team.createdAt,
-            version: team.version
+            version: team.version,
+            imageData: team.imageData
         )
     }
 
@@ -57,7 +62,8 @@ extension TeamEntity {
             country: country,
             city: city,
             createdAt: createdAt,
-            version: version
+            version: version,
+            imageData: imageData
         )
     }
 }
