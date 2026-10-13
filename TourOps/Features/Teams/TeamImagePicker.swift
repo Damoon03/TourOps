@@ -16,30 +16,54 @@ struct TeamImagePicker: View {
     @State private var selectedItem: PhotosPickerItem?
 
     var body: some View {
-        Section("Artist Image") {
-            HStack(spacing: 14) {
+        VStack(alignment: .leading, spacing: 15) {
+            VStack(alignment: .leading, spacing: 5) {
+                Text("ARTIST IMAGE")
+                    .font(.system(size: 11, weight: .bold))
+                    .tracking(1.2)
+                    .foregroundStyle(Palette.secondaryText)
+
+                Text("Give the artist a visual identity.")
+                    .font(.subheadline)
+                    .foregroundStyle(Palette.secondaryText)
+            }
+
+            HStack(spacing: 16) {
                 imagePreview
 
-                VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: 10) {
                     PhotosPicker(
                         selection: $selectedItem,
                         matching: .images,
                         photoLibrary: .shared()
                     ) {
                         Label(
-                            imageData == nil ? "Choose Image" : "Change Image",
+                            imageData == nil
+                                ? "Choose Image"
+                                : "Change Image",
                             systemImage: "photo"
                         )
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 14)
+                        .frame(minHeight: 42)
+                        .background(
+                            Palette.accent,
+                            in: Capsule()
+                        )
                     }
-                    .buttonStyle(.bordered)
+                    .buttonStyle(.plain)
 
                     if imageData != nil {
                         Button(role: .destructive) {
                             selectedItem = nil
                             imageData = nil
                         } label: {
-                            Label("Remove Image", systemImage: "trash")
-                                .font(.footnote)
+                            Label(
+                                "Remove Image",
+                                systemImage: "trash"
+                            )
+                            .font(.footnote.weight(.medium))
                         }
                         .buttonStyle(.plain)
                     }
@@ -47,19 +71,41 @@ struct TeamImagePicker: View {
 
                 Spacer(minLength: 0)
             }
-            .padding(.vertical, 4)
 
-            Text("The image is saved on this device and is not synced to other devices yet.")
-                .font(.footnote)
-                .foregroundStyle(.secondary)
+            Text("Stored on this device only; cloud image sync is not implemented yet.")
+                .font(.caption)
+                .foregroundStyle(Palette.secondaryText)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background {
+            RoundedRectangle(
+                cornerRadius: 23,
+                style: .continuous
+            )
+            .fill(Palette.surface)
+        }
+        .overlay {
+            RoundedRectangle(
+                cornerRadius: 23,
+                style: .continuous
+            )
+            .strokeBorder(
+                Palette.hairline,
+                lineWidth: 0.7
+            )
         }
         .task(id: selectedItem) {
             guard let selectedItem else { return }
 
             do {
                 guard
-                    let sourceData = try await selectedItem.loadTransferable(type: Data.self),
-                    let compressedData = Self.compressedJPEG(from: sourceData),
+                    let sourceData = try await selectedItem
+                        .loadTransferable(type: Data.self),
+                    let compressedData = Self.compressedJPEG(
+                        from: sourceData
+                    ),
                     !Task.isCancelled
                 else {
                     return
@@ -67,7 +113,7 @@ struct TeamImagePicker: View {
 
                 imageData = compressedData
             } catch {
-                // Keep the current image if the photo library cannot load the selection.
+                // Keep the current image if loading fails.
             }
         }
     }
@@ -78,35 +124,53 @@ struct TeamImagePicker: View {
             Image(uiImage: image)
                 .resizable()
                 .scaledToFill()
-                .frame(width: 76, height: 76)
-                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .frame(width: 88, height: 88)
+                .clipShape(
+                    RoundedRectangle(
+                        cornerRadius: 18,
+                        style: .continuous
+                    )
+                )
                 .overlay {
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .strokeBorder(Color.primary.opacity(0.10), lineWidth: 1)
+                    RoundedRectangle(
+                        cornerRadius: 18,
+                        style: .continuous
+                    )
+                    .strokeBorder(
+                        Palette.hairline,
+                        lineWidth: 0.8
+                    )
                 }
                 .accessibilityLabel("Selected artist image")
         } else {
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(Color.secondary.opacity(0.12))
-                .overlay {
-                    Image(systemName: "music.mic")
-                        .font(.system(size: 23, weight: .medium))
-                        .foregroundStyle(.secondary)
-                }
-                .frame(width: 76, height: 76)
-                .accessibilityLabel("No artist image selected")
+            RoundedRectangle(
+                cornerRadius: 18,
+                style: .continuous
+            )
+            .fill(Palette.surfaceRaised)
+            .overlay {
+                Image(systemName: "music.mic")
+                    .font(.system(size: 25, weight: .medium))
+                    .foregroundStyle(Palette.secondaryText)
+            }
+            .frame(width: 88, height: 88)
+            .accessibilityLabel("No artist image selected")
         }
     }
 
     private static func compressedJPEG(from data: Data) -> Data? {
-        guard let image = UIImage(data: data) else { return nil }
+        guard let image = UIImage(data: data) else {
+            return nil
+        }
 
         let maxPixelDimension: CGFloat = 1_200
         let pixelWidth = image.size.width * image.scale
         let pixelHeight = image.size.height * image.scale
         let largestDimension = max(pixelWidth, pixelHeight)
 
-        guard largestDimension > 0 else { return nil }
+        guard largestDimension > 0 else {
+            return nil
+        }
 
         let scale = min(1, maxPixelDimension / largestDimension)
         let targetSize = CGSize(
@@ -118,11 +182,30 @@ struct TeamImagePicker: View {
         format.scale = 1
         format.opaque = true
 
-        let renderer = UIGraphicsImageRenderer(size: targetSize, format: format)
-        return renderer.jpegData(withCompressionQuality: 0.82) { context in
+        let renderer = UIGraphicsImageRenderer(
+            size: targetSize,
+            format: format
+        )
+
+        return renderer.jpegData(withCompressionQuality: 0.82) {
+            context in
             UIColor.black.setFill()
-            context.fill(CGRect(origin: .zero, size: targetSize))
-            image.draw(in: CGRect(origin: .zero, size: targetSize))
+            context.fill(
+                CGRect(origin: .zero, size: targetSize)
+            )
+            image.draw(
+                in: CGRect(origin: .zero, size: targetSize)
+            )
         }
     }
+}
+
+#Preview {
+    ZStack {
+        Palette.canvas.ignoresSafeArea()
+
+        TeamImagePicker(imageData: .constant(nil))
+            .padding(20)
+    }
+    .preferredColorScheme(.dark)
 }
