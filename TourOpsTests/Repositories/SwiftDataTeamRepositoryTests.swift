@@ -173,7 +173,10 @@ struct SwiftDataTeamRepositoryTests {
         #expect(fetchedTeam.version == 2)
     }
     @Test
-    func stageApplyRemoteTeamUpdatesStoredTeamWithRemoteVersion() async throws {
+    func updateTeamPersistsChangedImageData() async throws {
+        let originalImage = Data([0x01, 0x02, 0x03])
+        let updatedImage = Data([0x04, 0x05, 0x06])
+
         let team = Team(
             id: UUID(),
             name: "Original Band",
@@ -181,7 +184,43 @@ struct SwiftDataTeamRepositoryTests {
             country: "UK",
             city: "London",
             createdAt: Date(),
-            version: 2
+            version: 1,
+            imageData: originalImage
+        )
+
+        try await repository.createTeam(team)
+
+        let updatedTeam = Team(
+            id: team.id,
+            name: team.name,
+            genre: team.genre,
+            country: team.country,
+            city: team.city,
+            createdAt: team.createdAt,
+            version: team.version,
+            imageData: updatedImage
+        )
+
+        try await repository.updateTeam(updatedTeam)
+
+        let fetchedTeam = try await repository.fetchTeam(id: team.id)
+
+        #expect(fetchedTeam.imageData == updatedImage)
+        #expect(fetchedTeam.version == 2)
+    }
+
+    @Test
+    func stageApplyRemoteTeamUpdatesStoredTeamWithRemoteVersion() async throws {
+        let localImage = Data([0x10, 0x20, 0x30])
+        let team = Team(
+            id: UUID(),
+            name: "Original Band",
+            genre: "Rock",
+            country: "UK",
+            city: "London",
+            createdAt: Date(),
+            version: 2,
+            imageData: localImage
         )
 
         try await repository.createTeam(team)
@@ -206,6 +245,7 @@ struct SwiftDataTeamRepositoryTests {
         #expect(fetchedTeam.country == "Germany")
         #expect(fetchedTeam.city == "Berlin")
         #expect(fetchedTeam.version == 5)
+        #expect(fetchedTeam.imageData == localImage)
     }
 
     @Test
