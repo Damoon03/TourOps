@@ -17,6 +17,7 @@ struct EditTeamView: View {
     @State private var genre: String
     @State private var country: String
     @State private var city: String
+    @State private var imageData: Data?
     @State private var showingError = false
 
     init(
@@ -30,6 +31,7 @@ struct EditTeamView: View {
         _genre = State(initialValue: team.genre)
         _country = State(initialValue: team.country)
         _city = State(initialValue: team.city)
+        _imageData = State(initialValue: team.imageData)
     }
 
     var body: some View {
@@ -40,6 +42,8 @@ struct EditTeamView: View {
                 TextField("Country", text: $country)
                 TextField("City", text: $city)
             }
+
+            TeamImagePicker(imageData: $imageData)
         }
         .navigationTitle("Edit Team")
         .navigationBarTitleDisplayMode(.inline)
@@ -59,7 +63,8 @@ struct EditTeamView: View {
                         country: country,
                         city: city,
                         createdAt: team.createdAt,
-                        version: team.version
+                        version: team.version,
+                        imageData: imageData
                     )
 
                     Task {
