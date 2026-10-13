@@ -129,10 +129,11 @@ struct TeamListView: View {
                 tours.map { ($0.id, $0.teamID) },
                 uniquingKeysWith: { first, _ in first }
             )
-            let now = Date()
+            let calendar = Calendar.current
+            let today = calendar.startOfDay(for: Date())
             var upcoming: [UUID: Show] = [:]
 
-            for show in shows where show.date >= now {
+            for show in shows where calendar.startOfDay(for: show.date) >= today {
                 guard let teamID = teamIDByTourID[show.tourID] else { continue }
                 if let current = upcoming[teamID], current.date <= show.date { continue }
                 upcoming[teamID] = show
@@ -235,6 +236,7 @@ struct TeamListView: View {
             ) {
                 Task {
                     await viewModel.loadTeams()
+                    await loadUpcomingShows()
                 }
             }
 
@@ -242,7 +244,7 @@ struct TeamListView: View {
             StatusPanel(
                 symbol: "music.mic",
                 title: "No teams yet",
-                message: "A team is the band or crew behind your tours. Create one to start planning.",
+                message: "A team represents an artist or band whose tours and shows you manage. Create one to start planning.",
                 actionTitle: "Create Team",
                 isPrimaryAction: true
             ) {
@@ -312,40 +314,6 @@ struct TeamListView: View {
 
 }
 
-// MARK: - Palette
-
-private enum Palette {
-    // Restrained near-black surfaces with indigo accents, inspired by the reference.
-    static let canvas = Color(red: 0.043, green: 0.043, blue: 0.071)       // #0B0B12
-    static let surface = Color(red: 0.090, green: 0.090, blue: 0.125)      // #171720
-    static let surfaceRaised = Color(red: 0.137, green: 0.133, blue: 0.180)
-    static let hairline = Color.white.opacity(0.085)
-
-    static let primaryText = Color(red: 0.96, green: 0.96, blue: 0.98)
-    static let secondaryText = Color(red: 0.64, green: 0.63, blue: 0.70)
-
-    static let accent = Color(red: 0.318, green: 0.251, blue: 0.937)       // #5140EF
-    static let chipAccent = Color(red: 0.70, green: 0.66, blue: 1.00)
-    static let highlight = Color(red: 0.94, green: 0.95, blue: 0.30)
-
-    // Genre-family colors and continent colors deliberately use separate palettes.
-    // This prevents adjacent genre/location chips from accidentally matching.
-    static let genreRock = Color(red: 0.72, green: 0.62, blue: 1.00)       // lavender
-    static let genrePop = Color(red: 1.00, green: 0.48, blue: 0.68)        // rose
-    static let genreElectronic = Color(red: 0.35, green: 0.82, blue: 0.98) // cyan
-    static let genreHipHop = Color(red: 1.00, green: 0.60, blue: 0.38)    // coral-orange
-    static let genreJazz = Color(red: 0.55, green: 0.86, blue: 0.68)      // mint
-    static let genreFolk = Color(red: 0.90, green: 0.78, blue: 0.42)      // gold
-    static let genreOther = Color(red: 0.88, green: 0.66, blue: 0.96)     // lilac-pink
-
-    // One stable color per continent. These differ from every genre-family color.
-    static let africa = Color(red: 0.96, green: 0.68, blue: 0.25)         // amber
-    static let asia = Color(red: 0.96, green: 0.38, blue: 0.38)            // red
-    static let europe = Color(red: 0.40, green: 0.78, blue: 0.55)          // green
-    static let americas = Color(red: 0.34, green: 0.60, blue: 0.96)        // blue
-    static let oceania = Color(red: 0.94, green: 0.48, blue: 0.27)        // orange
-}
-
 // MARK: - Filter pill
 
 private struct FilterPill: View {
@@ -376,23 +344,7 @@ private struct FilterPill: View {
 
 // MARK: - Informational chips
 
-private struct FilledChip: View {
-    let text: String
-    let color: Color
 
-    var body: some View {
-        Text(text)
-            .font(.system(size: 10, weight: .medium))
-            .foregroundStyle(color)
-            .padding(.horizontal, 7)
-            .padding(.vertical, 3)
-            .overlay {
-                Capsule()
-                    .strokeBorder(color.opacity(0.9), lineWidth: 0.8)
-            }
-            .fixedSize(horizontal: true, vertical: false)
-    }
-}
 
 private struct OutlineChip: View {
     let text: String
@@ -421,85 +373,9 @@ private struct TeamCard: View {
 
     @ScaledMetric(relativeTo: .body) private var avatarSize: CGFloat = 48
 
-    private var locationTone: Color {
-        let normalized = country
-            .folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
+    private var locationTone: Color { ContinentColorMapper.color(for: country) }
 
-        let africa: Set<String> = [
-            "algeria", "angola", "benin", "botswana", "burkina faso", "burundi", "cameroon",
-            "cape verde", "central african republic", "chad", "comoros", "congo", "democratic republic of the congo",
-            "djibouti", "egypt", "equatorial guinea", "eritrea", "eswatini", "ethiopia", "gabon", "gambia",
-            "ghana", "guinea", "guinea-bissau", "ivory coast", "cote d'ivoire", "kenya", "lesotho", "liberia",
-            "libya", "madagascar", "malawi", "mali", "mauritania", "mauritius", "morocco", "mozambique",
-            "namibia", "niger", "nigeria", "rwanda", "sao tome and principe", "senegal", "seychelles",
-            "sierra leone", "somalia", "south africa", "south sudan", "sudan", "tanzania", "togo", "tunisia",
-            "uganda", "zambia", "zimbabwe"
-        ]
-        let asia: Set<String> = [
-            "afghanistan", "armenia", "azerbaijan", "bahrain", "bangladesh", "bhutan", "brunei", "cambodia",
-            "china", "cyprus", "georgia", "india", "indonesia", "iran", "iraq", "israel", "japan", "jordan",
-            "kazakhstan", "kuwait", "kyrgyzstan", "laos", "lebanon", "malaysia", "maldives", "mongolia",
-            "myanmar", "nepal", "north korea", "oman", "pakistan", "palestine", "philippines", "qatar",
-            "saudi arabia", "singapore", "south korea", "sri lanka", "syria", "taiwan", "tajikistan", "thailand",
-            "timor-leste", "turkey", "turkmenistan", "united arab emirates", "uzbekistan", "vietnam", "yemen"
-        ]
-        let europe: Set<String> = [
-            "albania", "andorra", "austria", "belarus", "belgium", "bosnia and herzegovina", "bulgaria", "croatia",
-            "czechia", "czech republic", "denmark", "estonia", "finland", "france", "germany", "greece", "hungary",
-            "iceland", "ireland", "italy", "kosovo", "latvia", "liechtenstein", "lithuania", "luxembourg", "malta",
-            "moldova", "monaco", "montenegro", "netherlands", "north macedonia", "norway", "poland", "portugal",
-            "romania", "russia", "san marino", "serbia", "slovakia", "slovenia", "spain", "sweden", "switzerland",
-            "ukraine", "united kingdom", "uk", "england", "scotland", "wales", "vatican city"
-        ]
-        let americas: Set<String> = [
-            "antigua and barbuda", "argentina", "bahamas", "barbados", "belize", "bolivia", "brazil", "canada",
-            "chile", "colombia", "costa rica", "cuba", "dominica", "dominican republic", "ecuador", "el salvador",
-            "grenada", "guatemala", "guyana", "haiti", "honduras", "jamaica", "mexico", "nicaragua", "panama",
-            "paraguay", "peru", "saint kitts and nevis", "saint lucia", "saint vincent and the grenadines", "suriname",
-            "trinidad and tobago", "united states", "united states of america", "usa", "uruguay", "venezuela"
-        ]
-        let oceania: Set<String> = [
-            "australia", "fiji", "kiribati", "marshall islands", "micronesia", "nauru", "new zealand", "palau",
-            "papua new guinea", "samoa", "solomon islands", "tonga", "tuvalu", "vanuatu"
-        ]
-
-        if africa.contains(normalized) { return Palette.africa }
-        if asia.contains(normalized) { return Palette.asia }
-        if europe.contains(normalized) { return Palette.europe }
-        if americas.contains(normalized) { return Palette.americas }
-        if oceania.contains(normalized) { return Palette.oceania }
-        // Unknown/blank countries get a neutral location accent, not a random team color.
-        return Palette.secondaryText
-    }
-
-    private var genreTone: Color {
-        let value = genre.lowercased()
-        // Match more specific families first. Dream pop and electronic pop intentionally
-        // share a family color; rock subgenres share the rock color.
-        if value.contains("dream pop") || value.contains("electronic pop") || value.contains("synth-pop") || value.contains("synthpop") {
-            return Palette.genrePop
-        }
-        if value.contains("rock") || value.contains("punk") || value.contains("grunge") || value.contains("metal") || value.contains("shoegaze") {
-            return Palette.genreRock
-        }
-        if value.contains("hip-hop") || value.contains("hip hop") || value.contains("rap") || value.contains("trap") || value.contains(" grime") {
-            return Palette.genreHipHop
-        }
-        if value.contains("electronic") || value.contains("techno") || value.contains("house") || value.contains("trance") || value.contains("edm") || value.contains("drum and bass") || value.contains("drum & bass") || value.contains("dubstep") {
-            return Palette.genreElectronic
-        }
-        if value.contains("jazz") || value.contains("blues") || value.contains("soul") || value.contains("funk") || value.contains("r&b") || value.contains("rnb") {
-            return Palette.genreJazz
-        }
-        if value.contains("folk") || value.contains("country") || value.contains("bluegrass") || value.contains("acoustic") || value.contains("americana") {
-            return Palette.genreFolk
-        }
-        if value.contains("pop") || value.contains("indie") || value.contains("alternative") {
-            return Palette.genrePop
-        }
-        return Palette.genreOther
-    }
+    private var genreTone: Color { GenreColorMapper.color(for: genre) }
 
     private var genre: String {
         team.genre.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -535,7 +411,7 @@ private struct TeamCard: View {
                     if !genre.isEmpty || !country.isEmpty {
                         HStack(spacing: 5) {
                             if !genre.isEmpty {
-                                FilledChip(text: genre, color: genreTone)
+                                OutlineChip(text: genre, color: genreTone)
                             }
                             if !country.isEmpty {
                                 OutlineChip(text: country, color: locationTone)

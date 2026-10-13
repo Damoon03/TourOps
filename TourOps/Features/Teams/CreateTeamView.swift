@@ -16,6 +16,7 @@ struct CreateTeamView: View {
     @State private var genre = ""
     @State private var country = ""
     @State private var city = ""
+    @State private var imageData: Data?
     @State private var showingError = false
 
     var body: some View {
@@ -27,6 +28,8 @@ struct CreateTeamView: View {
                     TextField("Country", text: $country)
                     TextField("City", text: $city)
                 }
+
+                TeamImagePicker(imageData: $imageData)
             }
             .navigationTitle("New Team")
             .navigationBarTitleDisplayMode(.inline)
@@ -46,7 +49,8 @@ struct CreateTeamView: View {
                             country: country,
                             city: city,
                             createdAt: Date(),
-                            version: 1
+                            version: 1,
+                            imageData: imageData
                         )
 
                         Task {

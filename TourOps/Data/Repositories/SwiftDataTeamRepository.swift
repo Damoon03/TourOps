@@ -88,6 +88,7 @@ final class SwiftDataTeamRepository: TeamRepositoryProtocol {
         entity.genre = team.genre
         entity.country = team.country
         entity.city = team.city
+        entity.imageData = team.imageData
         entity.version += 1
     }
 
