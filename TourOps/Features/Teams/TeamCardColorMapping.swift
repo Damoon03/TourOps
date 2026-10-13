@@ -1,39 +1,5 @@
 import SwiftUI
 
-// MARK: - Palette
-
-enum Palette {
-    // Restrained near-black surfaces with indigo accents, inspired by the reference.
-    static let canvas = Color(red: 0.043, green: 0.043, blue: 0.071)       // #0B0B12
-    static let surface = Color(red: 0.090, green: 0.090, blue: 0.125)      // #171720
-    static let surfaceRaised = Color(red: 0.137, green: 0.133, blue: 0.180)
-    static let hairline = Color.white.opacity(0.085)
-
-    static let primaryText = Color(red: 0.96, green: 0.96, blue: 0.98)
-    static let secondaryText = Color(red: 0.64, green: 0.63, blue: 0.70)
-
-    static let accent = Color(red: 0.318, green: 0.251, blue: 0.937)       // #5140EF
-    static let chipAccent = Color(red: 0.70, green: 0.66, blue: 1.00)
-    static let highlight = Color(red: 0.94, green: 0.95, blue: 0.30)
-
-    // Genre-family colors and continent colors deliberately use separate palettes.
-    // This prevents adjacent genre/location chips from accidentally matching.
-    static let genreRock = Color(red: 0.72, green: 0.62, blue: 1.00)       // lavender
-    static let genrePop = Color(red: 1.00, green: 0.48, blue: 0.68)        // rose
-    static let genreElectronic = Color(red: 0.35, green: 0.82, blue: 0.98) // cyan
-    static let genreHipHop = Color(red: 1.00, green: 0.60, blue: 0.38)    // coral-orange
-    static let genreJazz = Color(red: 0.55, green: 0.86, blue: 0.68)      // mint
-    static let genreFolk = Color(red: 0.90, green: 0.78, blue: 0.42)      // gold
-    static let genreOther = Color(red: 0.88, green: 0.66, blue: 0.96)     // lilac-pink
-
-    // One stable color per continent. These differ from every genre-family color.
-    static let africa = Color(red: 0.96, green: 0.68, blue: 0.25)         // amber
-    static let asia = Color(red: 0.96, green: 0.38, blue: 0.38)            // red
-    static let europe = Color(red: 0.40, green: 0.78, blue: 0.55)          // green
-    static let americas = Color(red: 0.34, green: 0.60, blue: 0.96)        // blue
-    static let oceania = Color(red: 0.94, green: 0.48, blue: 0.27)        // orange
-}
-
 enum GenreColorMapper {
     static func color(for genreName: String) -> Color {
         let value = genreName.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current).trimmingCharacters(in: .whitespacesAndNewlines)

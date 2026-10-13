@@ -33,63 +33,34 @@ struct ShowListView: View {
     }
 
     private var tourShows: [Show] {
-        viewModel.shows
-            .filter { $0.tourID == tourID }
-            .sorted { lhs, rhs in
-                if lhs.date == rhs.date {
-                    return lhs.createdAt < rhs.createdAt
-                }
-
-                return lhs.date < rhs.date
-            }
+        viewModel.shows.filter { $0.tourID == tourID }
     }
 
-    private enum Phase {
-        case loading
-        case failed(String)
-        case empty
-        case populated([Show])
-    }
-
-    private var phase: Phase {
-        if viewModel.isLoading || !hasCompletedFirstLoad {
-            return .loading
-        }
-
-        if tourShows.isEmpty {
-            if let message = viewModel.errorMessage {
-                return .failed(message)
-            }
-
-            return .empty
-        }
-
-        return .populated(tourShows)
+    private var phase: ListPhase<ShowSchedule.Sections> {
+        ListPhase.resolve(
+            isLoading: viewModel.isLoading,
+            hasCompletedFirstLoad: hasCompletedFirstLoad,
+            isEmpty: tourShows.isEmpty,
+            loadError: viewModel.loadErrorMessage,
+            populated: { ShowSchedule.sections(from: tourShows) }
+        )
     }
 
     var body: some View {
         ZStack {
             Palette.canvas.ignoresSafeArea()
 
-            VStack(alignment: .leading, spacing: 0) {
-                header
-                content(for: phase)
-            }
+            content(for: phase)
         }
         .navigationTitle("Shows")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbarBackground(
-            Palette.canvas,
-            for: .navigationBar
-        )
-        .toolbarColorScheme(.dark, for: .navigationBar)
+        .toolbarBackground(Palette.canvas, for: .navigationBar)
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button {
                     showingCreateShow = true
                 } label: {
                     Image(systemName: "plus")
-                        .font(.system(size: 16, weight: .semibold))
                 }
                 .accessibilityLabel("New Show")
             }
@@ -99,75 +70,36 @@ struct ShowListView: View {
                 viewModel: viewModel,
                 tourID: tourID
             )
-            .preferredColorScheme(.dark)
-            .tint(Palette.accent)
         }
         .task(id: refreshSignal.generation) {
-            await viewModel.loadShows()
-            hasCompletedFirstLoad = true
+            await load()
         }
-        .tint(Palette.accent)
-        .preferredColorScheme(.dark)
     }
 
-    private var header: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("LIVE PERFORMANCE SCHEDULE")
-                .font(.system(size: 11, weight: .bold))
-                .tracking(1.3)
-                .foregroundStyle(Palette.chipAccent)
-
-            Text("Shows")
-                .font(
-                    .system(
-                        size: 27,
-                        weight: .bold,
-                        design: .rounded
-                    )
-                )
-                .foregroundStyle(Palette.primaryText)
-
-            Text("Keep every performance in this tour organized.")
-                .font(.subheadline)
-                .foregroundStyle(Palette.secondaryText)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 20)
-        .padding(.top, 14)
-        .padding(.bottom, 20)
+    private func load() async {
+        await viewModel.loadShows()
+        hasCompletedFirstLoad = true
     }
 
     @ViewBuilder
-    private func content(for phase: Phase) -> some View {
+    private func content(for phase: ListPhase<ShowSchedule.Sections>) -> some View {
         switch phase {
         case .loading:
-            VStack(spacing: 12) {
-                ProgressView()
-                    .controlSize(.large)
-                    .tint(Palette.accent)
-
-                Text("Loading shows…")
-                    .font(.subheadline)
-                    .foregroundStyle(Palette.secondaryText)
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            LoadingPanel(message: "Loading shows…")
 
         case .failed(let message):
-            statePanel(
+            StatePanel(
                 symbol: "exclamationmark.triangle",
                 title: "Couldn’t load shows",
                 message: message,
-                actionTitle: "Try Again"
+                actionTitle: "Try Again",
+                isPrimaryAction: false
             ) {
-                Task {
-                    await viewModel.loadShows()
-                    hasCompletedFirstLoad = true
-                }
+                Task { await load() }
             }
 
         case .empty:
-            statePanel(
+            StatePanel(
                 symbol: "music.mic",
                 title: "No shows yet",
                 message: "Add a performance to start building this tour’s schedule.",
@@ -176,80 +108,98 @@ struct ShowListView: View {
                 showingCreateShow = true
             }
 
-        case .populated(let shows):
+        case .populated(let sections):
             ScrollView {
-                LazyVStack(spacing: 12) {
-                    ForEach(shows) { show in
-                        NavigationLink {
-                            ShowDetailView(
-                                showID: show.id,
-                                viewModel: viewModel
-                            )
-                        } label: {
-                            ShowView(show: show)
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityHint("Opens show details")
+                LazyVStack(alignment: .leading, spacing: 12) {
+                    ScreenHeader(
+                        eyebrow: "LIVE PERFORMANCE SCHEDULE",
+                        title: headerTitle(for: sections),
+                        subtitle: "Keep every performance in this tour organized."
+                    )
+                    .padding(.bottom, 8)
+
+                    if !sections.upcoming.isEmpty {
+                        SectionHeading("UPCOMING")
+                            .padding(.top, 4)
+
+                        rows(sections.upcoming)
+                    }
+
+                    if !sections.past.isEmpty {
+                        SectionHeading("PAST")
+                            .padding(.top, 12)
+
+                        rows(sections.past)
                     }
                 }
                 .padding(.horizontal, 20)
-                .padding(.top, 2)
+                .padding(.top, 14)
                 .padding(.bottom, 32)
             }
             .scrollIndicators(.hidden)
         }
     }
 
-    private func statePanel(
-        symbol: String,
-        title: String,
-        message: String,
-        actionTitle: String,
-        action: @escaping () -> Void
-    ) -> some View {
-        ScrollView {
-            VStack(spacing: 15) {
-                RoundedRectangle(
-                    cornerRadius: 22,
-                    style: .continuous
+    private func headerTitle(for sections: ShowSchedule.Sections) -> String {
+        let count = sections.upcoming.count + sections.past.count
+        return count == 1 ? "1 Show" : "\(count) Shows"
+    }
+
+    private func rows(_ shows: [Show]) -> some View {
+        ForEach(shows) { show in
+            NavigationLink {
+                ShowDetailView(
+                    showID: show.id,
+                    viewModel: viewModel
                 )
-                .fill(Palette.surfaceRaised)
-                .overlay {
-                    Image(systemName: symbol)
-                        .font(.system(size: 26, weight: .medium))
-                        .foregroundStyle(Palette.chipAccent)
-                }
-                .frame(width: 76, height: 76)
-
-                Text(title)
-                    .font(.title2.bold())
-                    .foregroundStyle(Palette.primaryText)
-                    .multilineTextAlignment(.center)
-
-                Text(message)
-                    .font(.subheadline)
-                    .foregroundStyle(Palette.secondaryText)
-                    .multilineTextAlignment(.center)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                Button(actionTitle, action: action)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 22)
-                    .frame(minHeight: 46)
-                    .background(
-                        Palette.accent,
-                        in: Capsule()
-                    )
-                    .padding(.top, 5)
+            } label: {
+                ShowView(show: show)
             }
-            .padding(.horizontal, 28)
-            .padding(.top, 54)
-            .frame(maxWidth: .infinity)
+            .buttonStyle(CardPressStyle())
+            .accessibilityHint("Opens show details")
         }
     }
 }
 
-#Preview {
-    Text("Show List Preview")
+#if DEBUG
+@MainActor
+private func previewList(
+    shows: [Show],
+    mode: PreviewRepositoryMode = .normal
+) -> some View {
+    NavigationStack {
+        ShowListView(
+            repository: PreviewShowRepository(shows: shows, mode: mode),
+            tourID: PreviewData.tourID
+        )
+    }
+    .environment(DataRefreshSignal())
+    .preferredColorScheme(.dark)
 }
+
+#Preview("Populated") {
+    previewList(shows: [
+        PreviewData.upcomingShow,
+        PreviewData.todayShow,
+        PreviewData.pastShow,
+        PreviewData.longShow
+    ])
+}
+
+#Preview("Empty") {
+    previewList(shows: [])
+}
+
+#Preview("Loading") {
+    previewList(shows: [], mode: .neverLoading)
+}
+
+#Preview("Error") {
+    previewList(shows: [], mode: .failing)
+}
+
+#Preview("Accessibility text size") {
+    previewList(shows: [PreviewData.upcomingShow, PreviewData.longShow])
+        .dynamicTypeSize(.accessibility3)
+}
+#endif

@@ -18,6 +18,10 @@ final class ShowListViewModel {
     var isLoading = false
     private(set) var errorMessage: String?
 
+    /// Set only when loading fails with nothing to show. Mutation failures
+    /// use `errorMessage` alone, so a failed save never looks like a failed load.
+    private(set) var loadErrorMessage: String?
+
     init(repository: ShowRepositoryProtocol) {
         self.repository = repository
     }
@@ -27,12 +31,14 @@ final class ShowListViewModel {
 
         isLoading = shouldShowLoading
         errorMessage = nil
+        loadErrorMessage = nil
 
         do {
             shows = try await repository.fetchShows()
         } catch {
             if shows.isEmpty {
                 errorMessage = error.localizedDescription
+                loadErrorMessage = error.localizedDescription
             }
         }
 

@@ -207,6 +207,10 @@ struct TourOpsApp: App {
                 }
             }
             .environment(refreshSignal)
+            // TourOps is dark-only. Set once here so every screen and sheet
+            // inherits it instead of repeating it per screen.
+            .preferredColorScheme(.dark)
+            .tint(Palette.accent)
             .task {
                 await authSessionController.start()
             }

@@ -7,25 +7,19 @@
 
 import SwiftUI
 
+/// Presents its own navigation stack, like the Create and Edit screens for
+/// tours and shows, so callers just present it as a sheet.
 struct EditTeamView: View {
-
-    let team: Team
-    let viewModel: TeamListViewModel
 
     @Environment(\.dismiss) private var dismiss
 
-    @State private var name: String
-    @State private var genre: String
-    @State private var country: String
-    @State private var city: String
-    @State private var imageData: Data?
-    @State private var showingError = false
+    private let team: Team
+    let viewModel: TeamListViewModel
 
-    private var hasValidName: Bool {
-        !name.trimmingCharacters(
-            in: .whitespacesAndNewlines
-        ).isEmpty
-    }
+    @State private var draft: TeamDraft
+    @State private var isImageBusy = false
+    @State private var gate = SubmissionGate()
+    @State private var showingError = false
 
     init(
         team: Team,
@@ -34,48 +28,44 @@ struct EditTeamView: View {
         self.team = team
         self.viewModel = viewModel
 
-        _name = State(initialValue: team.name)
-        _genre = State(initialValue: team.genre)
-        _country = State(initialValue: team.country)
-        _city = State(initialValue: team.city)
-        _imageData = State(initialValue: team.imageData)
+        _draft = State(initialValue: TeamDraft(team: team))
+    }
+
+    private var canSubmit: Bool {
+        draft.isValid && !isImageBusy
     }
 
     var body: some View {
-        ZStack {
-            Palette.canvas.ignoresSafeArea()
-
-            ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
-                    intro
-
-                    fieldsCard
-
-                    TeamImagePicker(imageData: $imageData)
-                }
-                .padding(.horizontal, 20)
-                .padding(.top, 24)
-                .padding(.bottom, 32)
+        NavigationStack {
+            ScreenScroll(topPadding: 24, spacing: 20) {
+                TeamFormContent(
+                    draft: $draft,
+                    isImageBusy: $isImageBusy,
+                    title: "Edit artist details",
+                    subtitle: "Update the name, location or artwork."
+                )
             }
-            .scrollIndicators(.hidden)
-        }
-        .navigationTitle("Edit Team")
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .cancellationAction) {
-                Button("Cancel") {
-                    dismiss()
+            .navigationTitle("Edit Team")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                    .disabled(gate.isRunning)
                 }
-            }
 
-            ToolbarItem(placement: .confirmationAction) {
-                Button("Save", action: saveTeam)
-                    .fontWeight(.semibold)
-                    .disabled(!hasValidName)
+                ToolbarItem(placement: .confirmationAction) {
+                    SubmitButton(
+                        title: "Save",
+                        isEnabled: canSubmit,
+                        isSubmitting: gate.isRunning,
+                        action: submit
+                    )
+                }
             }
         }
-        .tint(Palette.accent)
-        .preferredColorScheme(.dark)
+        .interactiveDismissDisabled(gate.isRunning)
         .alert(
             "Couldn’t Update Team",
             isPresented: $showingError
@@ -84,122 +74,65 @@ struct EditTeamView: View {
                 viewModel.dismissError()
             }
         } message: {
-            Text(
-                viewModel.errorMessage
-                ?? "Something went wrong."
-            )
+            Text(viewModel.errorMessage ?? "Something went wrong.")
         }
     }
 
-    private var intro: some View {
-        VStack(alignment: .leading, spacing: 7) {
-            Text("ARTIST WORKSPACE")
-                .font(.system(size: 11, weight: .bold))
-                .tracking(1.4)
-                .foregroundStyle(Palette.chipAccent)
-
-            Text("Edit artist details")
-                .font(
-                    .system(
-                        size: 27,
-                        weight: .bold,
-                        design: .rounded
-                    )
-                )
-                .foregroundStyle(Palette.primaryText)
-
-            Text(
-                "Keep the artist profile and its visual identity up to date."
-            )
-            .font(.subheadline)
-            .foregroundStyle(Palette.secondaryText)
-            .fixedSize(horizontal: false, vertical: true)
+    private func submit() {
+        guard
+            !gate.isRunning,
+            !isImageBusy,
+            let updatedTeam = draft.updatedTeam(from: team)
+        else {
+            return
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private var fieldsCard: some View {
-        VStack(spacing: 18) {
-            TeamEditorField(
-                title: "Artist / Band Name",
-                prompt: "e.g. Silver Echo",
-                symbol: "music.mic",
-                text: $name
-            )
-
-            TeamEditorField(
-                title: "Genre",
-                prompt: "e.g. Indie Rock",
-                symbol: "waveform",
-                text: $genre
-            )
-
-            TeamEditorField(
-                title: "Country",
-                prompt: "e.g. United Kingdom",
-                symbol: "globe",
-                text: $country
-            )
-
-            TeamEditorField(
-                title: "City",
-                prompt: "e.g. London",
-                symbol: "mappin.and.ellipse",
-                text: $city
-            )
-        }
-        .padding(18)
-        .background {
-            RoundedRectangle(
-                cornerRadius: 23,
-                style: .continuous
-            )
-            .fill(Palette.surface)
-        }
-        .overlay {
-            RoundedRectangle(
-                cornerRadius: 23,
-                style: .continuous
-            )
-            .strokeBorder(
-                Palette.hairline,
-                lineWidth: 0.7
-            )
-        }
-    }
-
-    private func saveTeam() {
-        let updatedTeam = Team(
-            id: team.id,
-            name: name.trimmingCharacters(
-                in: .whitespacesAndNewlines
-            ),
-            genre: genre.trimmingCharacters(
-                in: .whitespacesAndNewlines
-            ),
-            country: country.trimmingCharacters(
-                in: .whitespacesAndNewlines
-            ),
-            city: city.trimmingCharacters(
-                in: .whitespacesAndNewlines
-            ),
-            createdAt: team.createdAt,
-            version: team.version,
-            imageData: imageData
-        )
 
         Task {
-            let success = await viewModel.updateTeam(updatedTeam)
+            let result = await gate.run({
+                await viewModel.updateTeam(updatedTeam)
+            })
 
-            if success {
+            switch result {
+            case .some(true):
                 dismiss()
-            } else {
+            case .some(false):
                 showingError = true
+            case .none:
+                break
             }
         }
     }
 }
 
-#Preview {
-    Text("Edit Team Preview")
+#if DEBUG
+#Preview("With image") {
+    EditTeamView(
+        team: PreviewData.teamWithImage,
+        viewModel: TeamListViewModel(
+            repository: PreviewTeamRepository(teams: [PreviewData.teamWithImage])
+        )
+    )
+    .preferredColorScheme(.dark)
 }
+
+#Preview("No image") {
+    EditTeamView(
+        team: PreviewData.team,
+        viewModel: TeamListViewModel(
+            repository: PreviewTeamRepository(teams: [PreviewData.team])
+        )
+    )
+    .preferredColorScheme(.dark)
+}
+
+#Preview("Long text, large type") {
+    EditTeamView(
+        team: PreviewData.longTeam,
+        viewModel: TeamListViewModel(
+            repository: PreviewTeamRepository(teams: [PreviewData.longTeam])
+        )
+    )
+    .preferredColorScheme(.dark)
+    .dynamicTypeSize(.accessibility2)
+}
+#endif

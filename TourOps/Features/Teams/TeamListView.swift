@@ -44,26 +44,14 @@ struct TeamListView: View {
 
     // MARK: - Screen phase
 
-    private enum Phase {
-        case loading
-        case failed(String)
-        case empty
-        case populated([Team])
-    }
-
-    private var phase: Phase {
-        if viewModel.isLoading || !hasCompletedFirstLoad {
-            return .loading
-        }
-
-        if viewModel.teams.isEmpty {
-            if let message = viewModel.errorMessage {
-                return .failed(message)
-            }
-            return .empty
-        }
-
-        return .populated(Self.alphabetical(viewModel.teams))
+    private var phase: ListPhase<[Team]> {
+        ListPhase.resolve(
+            isLoading: viewModel.isLoading,
+            hasCompletedFirstLoad: hasCompletedFirstLoad,
+            isEmpty: viewModel.teams.isEmpty,
+            loadError: viewModel.loadErrorMessage,
+            populated: { Self.alphabetical(viewModel.teams) }
+        )
     }
 
     private static func alphabetical(_ teams: [Team]) -> [Team] {
@@ -106,8 +94,6 @@ struct TeamListView: View {
             .toolbar(.hidden, for: .navigationBar)
             .sheet(isPresented: $showingCreateTeam) {
                 CreateTeamView(viewModel: viewModel)
-                    .preferredColorScheme(.dark)
-                    .tint(Palette.accent)
             }
             .task(id: refreshSignal.generation) {
                 await viewModel.loadTeams()
@@ -115,8 +101,6 @@ struct TeamListView: View {
                 hasCompletedFirstLoad = true
             }
         }
-        .tint(Palette.accent)
-        .preferredColorScheme(.dark)
     }
 
     private func loadUpcomingShows() async {
@@ -125,19 +109,10 @@ struct TeamListView: View {
             async let fetchedShows = showRepository.fetchShows()
             let (tours, shows) = try await (fetchedTours, fetchedShows)
 
-            let teamIDByTourID = Dictionary(
-                tours.map { ($0.id, $0.teamID) },
-                uniquingKeysWith: { first, _ in first }
+            let upcoming = TeamSchedule.nextShowsByTeamID(
+                tours: tours,
+                shows: shows
             )
-            let calendar = Calendar.current
-            let today = calendar.startOfDay(for: Date())
-            var upcoming: [UUID: Show] = [:]
-
-            for show in shows where calendar.startOfDay(for: show.date) >= today {
-                guard let teamID = teamIDByTourID[show.tourID] else { continue }
-                if let current = upcoming[teamID], current.date <= show.date { continue }
-                upcoming[teamID] = show
-            }
 
             nextShowsByTeamID = upcoming
         } catch {
@@ -148,7 +123,7 @@ struct TeamListView: View {
 
     // MARK: - Masthead
 
-    private func masthead(for phase: Phase) -> some View {
+    private func masthead(for phase: ListPhase<[Team]>) -> some View {
         var teamCount: Int?
         var showsCreateButton = true
 
@@ -197,7 +172,7 @@ struct TeamListView: View {
             showingCreateTeam = true
         } label: {
             Image(systemName: "plus")
-                .font(.system(size: 18, weight: .semibold))
+                .font(.title3.weight(.semibold))
                 .foregroundStyle(.white)
                 .frame(width: 48, height: 48)
                 .background(Circle().fill(Palette.accent))
@@ -211,23 +186,13 @@ struct TeamListView: View {
     // MARK: - Content
 
     @ViewBuilder
-    private func content(for phase: Phase) -> some View {
+    private func content(for phase: ListPhase<[Team]>) -> some View {
         switch phase {
         case .loading:
-            VStack(spacing: 14) {
-                ProgressView()
-                    .controlSize(.large)
-                    .tint(Palette.accent)
-
-                Text("Loading teams…")
-                    .font(.subheadline)
-                    .foregroundStyle(Palette.secondaryText)
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .accessibilityElement(children: .combine)
+            LoadingPanel(message: "Loading teams…")
 
         case .failed(let message):
-            StatusPanel(
+            StatePanel(
                 symbol: "exclamationmark.triangle",
                 title: "Couldn’t load teams",
                 message: message,
@@ -241,7 +206,7 @@ struct TeamListView: View {
             }
 
         case .empty:
-            StatusPanel(
+            StatePanel(
                 symbol: "music.mic",
                 title: "No teams yet",
                 message: "A team represents an artist or band whose tours and shows you manage. Create one to start planning.",
@@ -352,7 +317,7 @@ private struct OutlineChip: View {
 
     var body: some View {
         Text(text)
-            .font(.system(size: 10, weight: .medium))
+            .font(.caption2.weight(.medium))
             .foregroundStyle(color)
             .padding(.horizontal, 7)
             .padding(.vertical, 3)
@@ -396,7 +361,7 @@ private struct TeamCard: View {
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text(team.name)
-                        .font(.system(.headline, design: .rounded, weight: .bold))
+                        .font(.cardTitle)
                         .foregroundStyle(Palette.primaryText)
                         .multilineTextAlignment(.leading)
                         .lineLimit(2)
@@ -423,8 +388,8 @@ private struct TeamCard: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
 
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(Palette.secondaryText.opacity(0.75))
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(Palette.secondaryText)
                     .padding(.leading, 1)
                     .accessibilityHidden(true)
             }
@@ -437,15 +402,7 @@ private struct TeamCard: View {
         }
         .padding(13)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background {
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(Palette.surface)
-        }
-        .overlay {
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .strokeBorder(Palette.hairline, lineWidth: 0.7)
-        }
-        .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .cardSurface()
         .accessibilityElement(children: .combine)
     }
 
@@ -456,26 +413,26 @@ private struct TeamCard: View {
                 .resizable()
                 .scaledToFill()
                 .frame(width: avatarSize, height: avatarSize)
-                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: Radius.field, style: .continuous))
                 .overlay {
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    RoundedRectangle(cornerRadius: Radius.field, style: .continuous)
                         .strokeBorder(Palette.hairline, lineWidth: 0.8)
                 }
-                .accessibilityLabel("Artist image for \(team.name)")
+                .accessibilityHidden(true)
         } else {
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
+            RoundedRectangle(cornerRadius: Radius.field, style: .continuous)
                 .fill(Palette.surfaceRaised)
                 .overlay {
                     Image(systemName: "music.mic")
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundStyle(Palette.secondaryText.opacity(0.8))
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(Palette.secondaryText)
                 }
                 .frame(width: avatarSize, height: avatarSize)
                 .overlay {
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    RoundedRectangle(cornerRadius: Radius.field, style: .continuous)
                         .strokeBorder(Palette.hairline, lineWidth: 0.8)
                 }
-                .accessibilityLabel("No artist image")
+                .accessibilityHidden(true)
         }
     }
 
@@ -483,13 +440,13 @@ private struct TeamCard: View {
     private var nextShowRow: some View {
         HStack(alignment: .center, spacing: 10) {
             Image(systemName: "calendar")
-                .font(.system(size: 12, weight: .medium))
+                .font(.caption.weight(.medium))
                 .foregroundStyle(Palette.chipAccent)
                 .frame(width: 15)
                 .accessibilityHidden(true)
 
             Text("NEXT")
-                .font(.system(size: 9, weight: .bold, design: .rounded))
+                .font(.caption2.weight(.bold))
                 .tracking(0.5)
                 .foregroundStyle(Palette.secondaryText)
 
@@ -523,14 +480,7 @@ private struct TeamCard: View {
     }
 
     private func showLocation(_ show: Show) -> String {
-        let venue = show.venue.trimmingCharacters(in: .whitespacesAndNewlines)
-        let showCity = show.city.trimmingCharacters(in: .whitespacesAndNewlines)
-        switch (venue.isEmpty, showCity.isEmpty) {
-        case (false, false): return "\(venue) · \(showCity)"
-        case (false, true): return venue
-        case (true, false): return showCity
-        case (true, true): return show.name
-        }
+        show.locationSummary ?? show.name
     }
 
     private var locationSummary: String {
@@ -538,74 +488,7 @@ private struct TeamCard: View {
     }
 }
 
-// MARK: - Status panel (empty / error)
-
-private struct StatusPanel: View {
-
-    let symbol: String
-    let title: String
-    let message: String
-    let actionTitle: String
-    let isPrimaryAction: Bool
-    let action: () -> Void
-
-    var body: some View {
-        ScrollView {
-            VStack(spacing: 16) {
-                RoundedRectangle(cornerRadius: 22, style: .continuous)
-                    .fill(Palette.surfaceRaised)
-                    .overlay {
-                        Image(systemName: symbol)
-                            .font(.system(.title, weight: .medium))
-                            .foregroundStyle(Palette.chipAccent)
-                    }
-                    .frame(width: 76, height: 76)
-                    .accessibilityHidden(true)
-
-                Text(title)
-                    .font(.system(.title2, weight: .bold))
-                    .foregroundStyle(Palette.primaryText)
-                    .multilineTextAlignment(.center)
-                    .accessibilityAddTraits(.isHeader)
-
-                Text(message)
-                    .font(.body)
-                    .foregroundStyle(Palette.secondaryText)
-                    .multilineTextAlignment(.center)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                Button(actionTitle, action: action)
-                    .buttonStyle(PillButtonStyle(isProminent: isPrimaryAction))
-                    .padding(.top, 8)
-            }
-            .padding(.horizontal, 32)
-            .padding(.top, 64)
-            .frame(maxWidth: .infinity)
-        }
-        .scrollBounceBehavior(.basedOnSize)
-    }
-}
-
 // MARK: - Button styles
-
-private struct PillButtonStyle: ButtonStyle {
-
-    var isProminent = true
-
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(.subheadline.weight(.semibold))
-            .foregroundStyle(isProminent ? Color.white : Palette.primaryText)
-            .padding(.horizontal, 26)
-            .frame(minHeight: 48)
-            .background {
-                Capsule()
-                    .fill(isProminent ? Palette.accent : Palette.surfaceRaised)
-            }
-            .opacity(configuration.isPressed ? 0.75 : 1)
-            .contentShape(Capsule())
-    }
-}
 
 private struct PressFadeStyle: ButtonStyle {
 
@@ -613,16 +496,6 @@ private struct PressFadeStyle: ButtonStyle {
         configuration.label
             .opacity(configuration.isPressed ? 0.8 : 1)
             .scaleEffect(configuration.isPressed ? 0.94 : 1)
-            .animation(.easeOut(duration: 0.15), value: configuration.isPressed)
-    }
-}
-
-private struct CardPressStyle: ButtonStyle {
-
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .scaleEffect(configuration.isPressed ? 0.98 : 1)
-            .opacity(configuration.isPressed ? 0.9 : 1)
             .animation(.easeOut(duration: 0.15), value: configuration.isPressed)
     }
 }

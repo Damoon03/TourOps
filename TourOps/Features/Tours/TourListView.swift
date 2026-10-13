@@ -36,63 +36,34 @@ struct TourListView: View {
     }
 
     private var teamTours: [Tour] {
-        viewModel.tours
-            .filter { $0.teamID == teamID }
-            .sorted { lhs, rhs in
-                if lhs.startDate == rhs.startDate {
-                    return lhs.createdAt < rhs.createdAt
-                }
-                return lhs.startDate < rhs.startDate
-            }
+        viewModel.tours.filter { $0.teamID == teamID }
     }
 
-    private enum Phase {
-        case loading
-        case failed(String)
-        case empty
-        case populated([Tour])
-    }
-
-    private var phase: Phase {
-        if viewModel.isLoading || !hasCompletedFirstLoad {
-            return .loading
-        }
-
-        if teamTours.isEmpty {
-            if let message = viewModel.errorMessage {
-                return .failed(message)
-            }
-
-            return .empty
-        }
-
-        return .populated(teamTours)
+    private var phase: ListPhase<TourSchedule.Sections> {
+        ListPhase.resolve(
+            isLoading: viewModel.isLoading,
+            hasCompletedFirstLoad: hasCompletedFirstLoad,
+            isEmpty: teamTours.isEmpty,
+            loadError: viewModel.loadErrorMessage,
+            populated: { TourSchedule.sections(from: teamTours) }
+        )
     }
 
     var body: some View {
         ZStack {
             Palette.canvas.ignoresSafeArea()
 
-            VStack(alignment: .leading, spacing: 0) {
-                header
-
-                content(for: phase)
-            }
+            content(for: phase)
         }
         .navigationTitle("Tours")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbarBackground(
-            Palette.canvas,
-            for: .navigationBar
-        )
-        .toolbarColorScheme(.dark, for: .navigationBar)
+        .toolbarBackground(Palette.canvas, for: .navigationBar)
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button {
                     showingCreateTour = true
                 } label: {
                     Image(systemName: "plus")
-                        .font(.system(size: 16, weight: .semibold))
                 }
                 .accessibilityLabel("New Tour")
             }
@@ -102,75 +73,36 @@ struct TourListView: View {
                 viewModel: viewModel,
                 teamID: teamID
             )
-            .preferredColorScheme(.dark)
-            .tint(Palette.accent)
         }
         .task(id: refreshSignal.generation) {
-            await viewModel.loadTours()
-            hasCompletedFirstLoad = true
+            await load()
         }
-        .tint(Palette.accent)
-        .preferredColorScheme(.dark)
     }
 
-    private var header: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("TOUR SCHEDULE")
-                .font(.system(size: 11, weight: .bold))
-                .tracking(1.4)
-                .foregroundStyle(Palette.chipAccent)
-
-            Text("Plan the run.")
-                .font(
-                    .system(
-                        size: 27,
-                        weight: .bold,
-                        design: .rounded
-                    )
-                )
-                .foregroundStyle(Palette.primaryText)
-
-            Text("Manage tour dates and their live performances.")
-                .font(.subheadline)
-                .foregroundStyle(Palette.secondaryText)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 20)
-        .padding(.top, 14)
-        .padding(.bottom, 20)
+    private func load() async {
+        await viewModel.loadTours()
+        hasCompletedFirstLoad = true
     }
 
     @ViewBuilder
-    private func content(for phase: Phase) -> some View {
+    private func content(for phase: ListPhase<TourSchedule.Sections>) -> some View {
         switch phase {
         case .loading:
-            VStack(spacing: 12) {
-                ProgressView()
-                    .controlSize(.large)
-                    .tint(Palette.accent)
-
-                Text("Loading tours…")
-                    .font(.subheadline)
-                    .foregroundStyle(Palette.secondaryText)
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            LoadingPanel(message: "Loading tours…")
 
         case .failed(let message):
-            statePanel(
+            StatePanel(
                 symbol: "exclamationmark.triangle",
                 title: "Couldn’t load tours",
                 message: message,
-                actionTitle: "Try Again"
+                actionTitle: "Try Again",
+                isPrimaryAction: false
             ) {
-                Task {
-                    await viewModel.loadTours()
-                    hasCompletedFirstLoad = true
-                }
+                Task { await load() }
             }
 
         case .empty:
-            statePanel(
+            StatePanel(
                 symbol: "music.note.list",
                 title: "No tours yet",
                 message: "Create a tour to start organizing its shows.",
@@ -179,81 +111,100 @@ struct TourListView: View {
                 showingCreateTour = true
             }
 
-        case .populated(let tours):
+        case .populated(let sections):
             ScrollView {
-                LazyVStack(spacing: 12) {
-                    ForEach(tours) { tour in
-                        NavigationLink {
-                            TourDetailView(
-                                tourID: tour.id,
-                                viewModel: viewModel,
-                                showRepository: showRepository
-                            )
-                        } label: {
-                            TourView(tour: tour)
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityHint("Opens tour details")
+                LazyVStack(alignment: .leading, spacing: 12) {
+                    ScreenHeader(
+                        eyebrow: "TOUR SCHEDULE",
+                        title: headerTitle(for: sections),
+                        subtitle: "Manage tour dates and their live performances."
+                    )
+                    .padding(.bottom, 8)
+
+                    if !sections.upcoming.isEmpty {
+                        SectionHeading("UPCOMING AND IN PROGRESS")
+                            .padding(.top, 4)
+
+                        rows(sections.upcoming)
+                    }
+
+                    if !sections.past.isEmpty {
+                        SectionHeading("PAST")
+                            .padding(.top, 12)
+
+                        rows(sections.past)
                     }
                 }
                 .padding(.horizontal, 20)
-                .padding(.top, 2)
+                .padding(.top, 14)
                 .padding(.bottom, 32)
             }
             .scrollIndicators(.hidden)
         }
     }
 
-    private func statePanel(
-        symbol: String,
-        title: String,
-        message: String,
-        actionTitle: String,
-        action: @escaping () -> Void
-    ) -> some View {
-        ScrollView {
-            VStack(spacing: 15) {
-                RoundedRectangle(
-                    cornerRadius: 22,
-                    style: .continuous
+    private func headerTitle(for sections: TourSchedule.Sections) -> String {
+        let count = sections.upcoming.count + sections.past.count
+        return count == 1 ? "1 Tour" : "\(count) Tours"
+    }
+
+    private func rows(_ tours: [Tour]) -> some View {
+        ForEach(tours) { tour in
+            NavigationLink {
+                TourDetailView(
+                    tourID: tour.id,
+                    viewModel: viewModel,
+                    showRepository: showRepository
                 )
-                .fill(Palette.surfaceRaised)
-                .overlay {
-                    Image(systemName: symbol)
-                        .font(.system(size: 26, weight: .medium))
-                        .foregroundStyle(Palette.chipAccent)
-                }
-                .frame(width: 76, height: 76)
-
-                Text(title)
-                    .font(.title2.bold())
-                    .foregroundStyle(Palette.primaryText)
-                    .multilineTextAlignment(.center)
-
-                Text(message)
-                    .font(.subheadline)
-                    .foregroundStyle(Palette.secondaryText)
-                    .multilineTextAlignment(.center)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                Button(actionTitle, action: action)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 22)
-                    .frame(minHeight: 46)
-                    .background(
-                        Palette.accent,
-                        in: Capsule()
-                    )
-                    .padding(.top, 5)
+            } label: {
+                TourView(tour: tour)
             }
-            .padding(.horizontal, 28)
-            .padding(.top, 54)
-            .frame(maxWidth: .infinity)
+            .buttonStyle(CardPressStyle())
+            .accessibilityHint("Opens tour details")
         }
     }
 }
 
-#Preview {
-    Text("Tour List Preview")
+#if DEBUG
+@MainActor
+private func previewList(
+    tours: [Tour],
+    mode: PreviewRepositoryMode = .normal
+) -> some View {
+    NavigationStack {
+        TourListView(
+            repository: PreviewTourRepository(tours: tours, mode: mode),
+            teamID: PreviewData.teamID,
+            showRepository: PreviewShowRepository()
+        )
+    }
+    .environment(DataRefreshSignal())
+    .preferredColorScheme(.dark)
 }
+
+#Preview("Populated") {
+    previewList(tours: [
+        PreviewData.upcomingTour,
+        PreviewData.currentTour,
+        PreviewData.pastTour,
+        PreviewData.longTour
+    ])
+}
+
+#Preview("Empty") {
+    previewList(tours: [])
+}
+
+#Preview("Loading") {
+    previewList(tours: [], mode: .neverLoading)
+}
+
+#Preview("Error") {
+    previewList(tours: [], mode: .failing)
+}
+
+#Preview("Accessibility text size") {
+    previewList(tours: [PreviewData.upcomingTour, PreviewData.longTour])
+        .dynamicTypeSize(.accessibility3)
+}
+#endif

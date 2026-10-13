@@ -7,215 +7,113 @@
 
 import SwiftUI
 
-enum TourTimelineStatus {
-    case upcoming
-    case inProgress
-    case completed
-
-    init(tour: Tour, referenceDate: Date = Date()) {
-        let calendar = Calendar.current
-        let today = calendar.startOfDay(for: referenceDate)
-        let start = calendar.startOfDay(for: tour.startDate)
-        let end = calendar.startOfDay(for: tour.endDate)
-
-        if today < start {
-            self = .upcoming
-        } else if today > end {
-            self = .completed
-        } else {
-            self = .inProgress
-        }
-    }
-
-    var title: String {
-        switch self {
-        case .upcoming:
-            "Upcoming"
-        case .inProgress:
-            "In progress"
-        case .completed:
-            "Completed"
-        }
-    }
-
-    var color: Color {
-        switch self {
-        case .upcoming:
-            Palette.chipAccent
-        case .inProgress:
-            Palette.genreJazz
-        case .completed:
-            Palette.secondaryText
-        }
-    }
-
-    var symbol: String {
-        switch self {
-        case .upcoming:
-            "calendar"
-        case .inProgress:
-            "waveform"
-        case .completed:
-            "checkmark.circle"
-        }
-    }
-}
-
-struct TourStatusBadge: View {
-
-    let status: TourTimelineStatus
-
-    var body: some View {
-        HStack(spacing: 5) {
-            Circle()
-                .fill(status.color)
-                .frame(width: 6, height: 6)
-
-            Text(status.title)
-                .font(.caption.weight(.medium))
-                .foregroundStyle(status.color)
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 6)
-        .overlay {
-            Capsule()
-                .strokeBorder(
-                    status.color.opacity(0.65),
-                    lineWidth: 0.8
-                )
-        }
-        .fixedSize()
-    }
-}
+// MARK: - List card
 
 struct TourView: View {
 
     let tour: Tour
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @ScaledMetric(relativeTo: .headline) private var iconTile: CGFloat = 48
+
     private var status: TourTimelineStatus {
         TourTimelineStatus(tour: tour)
+    }
+
+    /// One announcement: name, status and the full date range.
+    static func accessibilityLabel(
+        for tour: Tour,
+        status: TourTimelineStatus
+    ) -> String {
+        let start = tour.startDate.formatted(date: .long, time: .omitted)
+        let end = tour.endDate.formatted(date: .long, time: .omitted)
+
+        return "\(tour.name.trimmed), \(status.title), starts \(start), ends \(end)"
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 15) {
             HStack(alignment: .top, spacing: 12) {
                 RoundedRectangle(
-                    cornerRadius: 15,
+                    cornerRadius: Radius.field,
                     style: .continuous
                 )
                 .fill(Palette.accent.opacity(0.20))
                 .overlay {
                     Image(systemName: "music.note.list")
-                        .font(.system(size: 20, weight: .semibold))
+                        .font(.title3.weight(.semibold))
                         .foregroundStyle(Palette.chipAccent)
                 }
-                .frame(width: 48, height: 48)
+                .frame(width: iconTile, height: iconTile)
 
                 VStack(alignment: .leading, spacing: 6) {
                     Text(tour.name)
-                        .font(
-                            .system(
-                                .headline,
-                                design: .rounded,
-                                weight: .bold
-                            )
-                        )
+                        .font(.cardTitle)
                         .foregroundStyle(Palette.primaryText)
                         .multilineTextAlignment(.leading)
-                        .lineLimit(2)
-                        .fixedSize(
-                            horizontal: false,
-                            vertical: true
-                        )
+                        .lineLimit(3)
+                        .fixedSize(horizontal: false, vertical: true)
 
-                    TourStatusBadge(status: status)
+                    StatusBadge(title: status.title, color: status.color)
                 }
 
                 Spacer(minLength: 0)
 
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(.footnote.weight(.semibold))
                     .foregroundStyle(Palette.secondaryText)
                     .padding(.top, 4)
             }
 
-            Rectangle()
-                .fill(Palette.hairline)
-                .frame(height: 0.7)
+            HairlineDivider()
 
-            HStack(spacing: 0) {
-                dateColumn(
-                    title: "STARTS",
-                    date: tour.startDate
-                )
-
-                Spacer(minLength: 12)
-
-                Image(systemName: "arrow.right")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(Palette.secondaryText)
-
-                Spacer(minLength: 12)
-
-                dateColumn(
-                    title: "ENDS",
-                    date: tour.endDate
-                )
-            }
+            dateRange
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background {
-            RoundedRectangle(
-                cornerRadius: 22,
-                style: .continuous
-            )
-            .fill(Palette.surface)
-        }
-        .overlay {
-            RoundedRectangle(
-                cornerRadius: 22,
-                style: .continuous
-            )
-            .strokeBorder(
-                Palette.hairline,
-                lineWidth: 0.7
-            )
-        }
-        .contentShape(
-            RoundedRectangle(
-                cornerRadius: 22,
-                style: .continuous
-            )
-        )
-        .accessibilityElement(children: .combine)
+        .cardSurface()
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Self.accessibilityLabel(for: tour, status: status))
     }
 
-    private func dateColumn(
-        title: String,
-        date: Date
-    ) -> some View {
+    @ViewBuilder
+    private var dateRange: some View {
+        let layout = dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 10))
+            : AnyLayout(HStackLayout(alignment: .top, spacing: 12))
+
+        layout {
+            dateColumn(title: "STARTS", date: tour.startDate)
+
+            if !dynamicTypeSize.isAccessibilitySize {
+                Spacer(minLength: 0)
+
+                Image(systemName: "arrow.right")
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(Palette.secondaryText)
+                    .padding(.top, 14)
+
+                Spacer(minLength: 0)
+            }
+
+            dateColumn(title: "ENDS", date: tour.endDate)
+        }
+    }
+
+    private func dateColumn(title: String, date: Date) -> some View {
         VStack(alignment: .leading, spacing: 5) {
             Text(title)
-                .font(.system(size: 9, weight: .bold))
-                .tracking(1)
-                .foregroundStyle(Palette.secondaryText)
+                .eyebrowStyle()
 
-            Text(
-                date.formatted(
-                    date: .abbreviated,
-                    time: .omitted
-                )
-            )
-            .font(.subheadline.weight(.semibold))
-            .foregroundStyle(Palette.primaryText)
-            .lineLimit(1)
-            .minimumScaleFactor(0.8)
+            Text(date.formatted(date: .abbreviated, time: .omitted))
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(Palette.primaryText)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 }
 
-// MARK: - Shared tour date editor
+// MARK: - Date range editor
 
 struct TourDateRangeEditor: View {
 
@@ -229,10 +127,7 @@ struct TourDateRangeEditor: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             VStack(alignment: .leading, spacing: 5) {
-                Text("SCHEDULE")
-                    .font(.system(size: 11, weight: .bold))
-                    .tracking(1.2)
-                    .foregroundStyle(Palette.secondaryText)
+                SectionHeading("SCHEDULE")
 
                 Text("Tour dates")
                     .font(.headline)
@@ -246,9 +141,7 @@ struct TourDateRangeEditor: View {
             )
             .tint(Palette.accent)
 
-            Rectangle()
-                .fill(Palette.hairline)
-                .frame(height: 0.7)
+            HairlineDivider()
 
             DatePicker(
                 "Ends",
@@ -261,63 +154,45 @@ struct TourDateRangeEditor: View {
         .font(.subheadline)
         .foregroundStyle(Palette.primaryText)
         .padding(18)
-        .background {
-            RoundedRectangle(
-                cornerRadius: 23,
-                style: .continuous
-            )
-            .fill(Palette.surface)
-        }
-        .overlay {
-            RoundedRectangle(
-                cornerRadius: 23,
-                style: .continuous
-            )
-            .strokeBorder(
-                Palette.hairline,
-                lineWidth: 0.7
-            )
-        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .cardSurface()
         .onChange(of: startDate) { _, newStartDate in
-            let calendar = Calendar.current
-            let newStartDay = calendar.startOfDay(
-                for: newStartDate
+            // Same clamping rule as `TourDraft.setStartDate`.
+            endDate = TourDateRange.normalizedEnd(
+                start: newStartDate,
+                end: endDate
             )
-            let currentEndDay = calendar.startOfDay(
-                for: endDate
-            )
-
-            if currentEndDay < newStartDay {
-                endDate = newStartDay
-            }
         }
     }
 }
 
-#Preview {
+#if DEBUG
+#Preview("Upcoming, current, past") {
     ZStack {
         Palette.canvas.ignoresSafeArea()
 
         ScrollView {
-            VStack(spacing: 16) {
-                TourView(
-                    tour: Tour(
-                        id: UUID(),
-                        teamID: UUID(),
-                        name: "World Tour 2026",
-                        startDate: .now.addingTimeInterval(
-                            60 * 60 * 24 * 20
-                        ),
-                        endDate: .now.addingTimeInterval(
-                            60 * 60 * 24 * 60
-                        ),
-                        createdAt: .now,
-                        version: 1
-                    )
-                )
+            VStack(spacing: 12) {
+                TourView(tour: PreviewData.upcomingTour)
+                TourView(tour: PreviewData.currentTour)
+                TourView(tour: PreviewData.pastTour)
             }
             .padding(20)
         }
     }
     .preferredColorScheme(.dark)
 }
+
+#Preview("Long text, large type") {
+    ZStack {
+        Palette.canvas.ignoresSafeArea()
+
+        ScrollView {
+            TourView(tour: PreviewData.longTour)
+                .padding(20)
+        }
+    }
+    .preferredColorScheme(.dark)
+    .dynamicTypeSize(.accessibility3)
+}
+#endif
