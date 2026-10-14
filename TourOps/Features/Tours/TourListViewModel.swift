@@ -18,6 +18,10 @@ final class TourListViewModel {
     var isLoading = false
     private(set) var errorMessage: String?
 
+    /// Set when a load fails. Mutation failures use `errorMessage` alone, so a
+    /// failed save never looks like a failed load.
+    private(set) var loadErrorMessage: String?
+
     init(repository: TourRepositoryProtocol) {
         self.repository = repository
     }
@@ -25,11 +29,15 @@ final class TourListViewModel {
     func loadTours() async {
         isLoading = tours.isEmpty
         errorMessage = nil
+        loadErrorMessage = nil
 
         do {
             tours = try await repository.fetchTours()
+        } catch is CancellationError {
+            // A superseded load is not a failure.
         } catch {
             errorMessage = error.localizedDescription
+            loadErrorMessage = error.localizedDescription
         }
 
         isLoading = false

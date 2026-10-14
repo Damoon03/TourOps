@@ -17,6 +17,9 @@ struct ShowDetailView: View {
     @State private var showingEditShow = false
     @State private var showingDeleteConfirmation = false
     @State private var showingError = false
+    @State private var gate = SubmissionGate()
+
+    @ScaledMetric(relativeTo: .title) private var heroIconSize: CGFloat = 62
 
     private var show: Show? {
         viewModel.shows.first { $0.id == showID }
@@ -25,47 +28,45 @@ struct ShowDetailView: View {
     var body: some View {
         Group {
             if let show {
-                ZStack {
-                    Palette.canvas.ignoresSafeArea()
+                ScreenScroll {
+                    heroCard(for: show)
+                    scheduleCard(for: show)
+                    venueCard(for: show)
 
-                    ScrollView {
-                        VStack(alignment: .leading, spacing: 18) {
-                            heroCard(for: show)
-                            scheduleCard(for: show)
-                            locationCard(for: show)
-                            deleteButton
-                        }
-                        .padding(.horizontal, 20)
-                        .padding(.top, 16)
-                        .padding(.bottom, 36)
+                    Text(
+                        "Added to TourOps on \(show.createdAt.formatted(date: .abbreviated, time: .omitted))"
+                    )
+                    .font(.footnote)
+                    .foregroundStyle(Palette.secondaryText)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                    DestructiveButton(
+                        title: "Delete Show",
+                        hint: "Asks for confirmation before deleting this show.",
+                        isDisabled: gate.isRunning
+                    ) {
+                        showingDeleteConfirmation = true
                     }
-                    .scrollIndicators(.hidden)
                 }
             } else {
                 ContentUnavailableView(
                     "Show Not Found",
                     systemImage: "music.mic",
-                    description: Text(
-                        "This show is no longer available."
-                    )
+                    description: Text("This show is no longer available.")
                 )
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(Palette.canvas.ignoresSafeArea())
             }
         }
-        .navigationTitle(show?.name ?? "Show")
+        .navigationTitle("Show")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbarBackground(
-            Palette.canvas,
-            for: .navigationBar
-        )
-        .toolbarColorScheme(.dark, for: .navigationBar)
+        .toolbarBackground(Palette.canvas, for: .navigationBar)
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button("Edit") {
                     showingEditShow = true
                 }
-                .disabled(show == nil)
+                .disabled(show == nil || gate.isRunning)
             }
         }
         .sheet(isPresented: $showingEditShow) {
@@ -74,8 +75,6 @@ struct ShowDetailView: View {
                     viewModel: viewModel,
                     show: show
                 )
-                .preferredColorScheme(.dark)
-                .tint(Palette.accent)
             }
         }
         .confirmationDialog(
@@ -83,23 +82,13 @@ struct ShowDetailView: View {
             isPresented: $showingDeleteConfirmation,
             titleVisibility: .visible
         ) {
-            Button("Delete", role: .destructive) {
-                guard let show else { return }
-
-                Task {
-                    let success = await viewModel.deleteShow(show)
-
-                    if success {
-                        dismiss()
-                    } else {
-                        showingError = true
-                    }
-                }
+            Button("Delete Show", role: .destructive) {
+                delete()
             }
 
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("This action cannot be undone.")
+            Text(DeletionMessage.show())
         }
         .alert(
             "Couldn’t Delete Show",
@@ -109,276 +98,166 @@ struct ShowDetailView: View {
                 viewModel.dismissError()
             }
         } message: {
-            Text(
-                viewModel.errorMessage
-                ?? "Something went wrong."
-            )
+            Text(viewModel.errorMessage ?? "Something went wrong.")
         }
-        .tint(Palette.accent)
-        .preferredColorScheme(.dark)
+    }
+
+    private func delete() {
+        guard !gate.isRunning, let show else {
+            return
+        }
+
+        Task {
+            let result = await gate.run({
+                await viewModel.deleteShow(show)
+            })
+
+            switch result {
+            case .some(true):
+                dismiss()
+            case .some(false):
+                showingError = true
+            case .none:
+                break
+            }
+        }
     }
 
     // MARK: - Hero
 
     private func heroCard(for show: Show) -> some View {
-        VStack(alignment: .leading, spacing: 16) {
+        let status = ShowTimeStatus(date: show.date)
+
+        return VStack(alignment: .leading, spacing: 16) {
             HStack(alignment: .top) {
                 RoundedRectangle(
-                    cornerRadius: 17,
+                    cornerRadius: Radius.control,
                     style: .continuous
                 )
                 .fill(Palette.accent.opacity(0.22))
                 .overlay {
                     Image(systemName: "music.mic")
-                        .font(.system(size: 27, weight: .semibold))
+                        .font(.title2.weight(.semibold))
                         .foregroundStyle(Palette.chipAccent)
                 }
-                .frame(width: 62, height: 62)
+                .frame(width: heroIconSize, height: heroIconSize)
+                .accessibilityHidden(true)
 
                 Spacer()
 
-                ShowStatusBadge(
-                    status: ShowTimeStatus(date: show.date)
-                )
+                StatusBadge(title: status.title, color: status.color)
             }
 
             VStack(alignment: .leading, spacing: 7) {
                 Text("LIVE PERFORMANCE")
-                    .font(.system(size: 10, weight: .bold))
-                    .tracking(1.3)
-                    .foregroundStyle(Palette.chipAccent)
+                    .eyebrowStyle(Palette.chipAccent)
 
                 Text(show.name)
-                    .font(
-                        .system(
-                            size: 27,
-                            weight: .bold,
-                            design: .rounded
-                        )
-                    )
+                    .font(.heroTitle)
                     .foregroundStyle(Palette.primaryText)
                     .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityAddTraits(.isHeader)
 
-                Text("Show details and venue information")
-                    .font(.subheadline)
-                    .foregroundStyle(Palette.secondaryText)
+                if let location = show.locationSummary {
+                    Text(location)
+                        .font(.subheadline)
+                        .foregroundStyle(Palette.secondaryText)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
         }
         .padding(19)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background {
-            RoundedRectangle(
-                cornerRadius: 25,
-                style: .continuous
-            )
-            .fill(Palette.surface)
-        }
-        .overlay {
-            RoundedRectangle(
-                cornerRadius: 25,
-                style: .continuous
-            )
-            .strokeBorder(
-                Palette.hairline,
-                lineWidth: 0.7
-            )
-        }
+        .cardSurface(radius: Radius.hero)
     }
 
     // MARK: - Schedule
 
     private func scheduleCard(for show: Show) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            sectionHeading("SCHEDULE")
-
-            detailRow(
+        DetailCard(heading: "SCHEDULE") {
+            DetailRow(
                 title: "Date",
-                value: show.date.formatted(
-                    date: .long,
-                    time: .omitted
-                ),
+                value: show.date.formatted(date: .long, time: .omitted),
                 symbol: "calendar"
             )
 
-            Rectangle()
-                .fill(Palette.hairline)
-                .frame(height: 0.7)
+            HairlineDivider()
 
-            detailRow(
+            // Shows store a single moment in time. The time is displayed in
+            // this device's time zone, and the zone is named so a show in
+            // another region is not silently misread.
+            DetailRow(
                 title: "Start time",
                 value: show.date.formatted(
-                    date: .omitted,
-                    time: .shortened
+                    .dateTime.hour().minute().timeZone()
                 ),
                 symbol: "clock"
             )
-
-            Rectangle()
-                .fill(Palette.hairline)
-                .frame(height: 0.7)
-
-            detailRow(
-                title: "Added to TourOps",
-                value: show.createdAt.formatted(
-                    date: .abbreviated,
-                    time: .omitted
-                ),
-                symbol: "plus.circle"
-            )
-        }
-        .padding(.horizontal, 18)
-        .padding(.top, 18)
-        .padding(.bottom, 7)
-        .background {
-            RoundedRectangle(
-                cornerRadius: 23,
-                style: .continuous
-            )
-            .fill(Palette.surface)
-        }
-        .overlay {
-            RoundedRectangle(
-                cornerRadius: 23,
-                style: .continuous
-            )
-            .strokeBorder(
-                Palette.hairline,
-                lineWidth: 0.7
-            )
         }
     }
 
-    // MARK: - Location
+    // MARK: - Venue
 
-    private func locationCard(for show: Show) -> some View {
-        VStack(alignment: .leading, spacing: 14) {
-            sectionHeading("VENUE")
+    private func venueCard(for show: Show) -> some View {
+        let venue = show.venue.trimmed
+        let city = show.city.trimmed
 
-            HStack(spacing: 13) {
-                RoundedRectangle(
-                    cornerRadius: 15,
-                    style: .continuous
-                )
-                .fill(Palette.surfaceRaised)
-                .overlay {
-                    Image(systemName: "mappin.and.ellipse")
-                        .font(.system(size: 21, weight: .medium))
-                        .foregroundStyle(Palette.chipAccent)
-                }
-                .frame(width: 50, height: 50)
-
-                VStack(alignment: .leading, spacing: 5) {
-                    Text(
-                        show.venue.isEmpty
-                            ? "Venue not set"
-                            : show.venue
-                    )
-                    .font(.headline)
-                    .foregroundStyle(Palette.primaryText)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                    Text(
-                        show.city.isEmpty
-                            ? "City not set"
-                            : show.city
-                    )
-                    .font(.subheadline)
-                    .foregroundStyle(Palette.secondaryText)
-                }
-
-                Spacer(minLength: 0)
-            }
-        }
-        .padding(18)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background {
-            RoundedRectangle(
-                cornerRadius: 23,
-                style: .continuous
+        return DetailCard(heading: "VENUE") {
+            DetailRow(
+                title: "Venue",
+                value: venue.isEmpty ? "Venue not set" : venue,
+                symbol: "building.2"
             )
-            .fill(Palette.surface)
-        }
-        .overlay {
-            RoundedRectangle(
-                cornerRadius: 23,
-                style: .continuous
-            )
-            .strokeBorder(
-                Palette.hairline,
-                lineWidth: 0.7
+
+            HairlineDivider()
+
+            DetailRow(
+                title: "City",
+                value: city.isEmpty ? "City not set" : city,
+                symbol: "mappin.and.ellipse"
             )
         }
-    }
-
-    // MARK: - Shared details
-
-    private func sectionHeading(_ title: String) -> some View {
-        Text(title)
-            .font(.system(size: 11, weight: .bold))
-            .tracking(1.2)
-            .foregroundStyle(Palette.secondaryText)
-            .padding(.bottom, 7)
-    }
-
-    private func detailRow(
-        title: String,
-        value: String,
-        symbol: String
-    ) -> some View {
-        HStack(spacing: 13) {
-            Image(systemName: symbol)
-                .font(.system(size: 16, weight: .medium))
-                .foregroundStyle(Palette.chipAccent)
-                .frame(width: 23)
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text(title)
-                    .font(.caption)
-                    .foregroundStyle(Palette.secondaryText)
-
-                Text(value)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(Palette.primaryText)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            Spacer(minLength: 0)
-        }
-        .padding(.vertical, 13)
-    }
-
-    // MARK: - Delete
-
-    private var deleteButton: some View {
-        Button(role: .destructive) {
-            showingDeleteConfirmation = true
-        } label: {
-            Label("Delete Show", systemImage: "trash")
-                .font(.subheadline.weight(.semibold))
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 15)
-                .background {
-                    RoundedRectangle(
-                        cornerRadius: 17,
-                        style: .continuous
-                    )
-                    .fill(Color.red.opacity(0.08))
-                }
-                .overlay {
-                    RoundedRectangle(
-                        cornerRadius: 17,
-                        style: .continuous
-                    )
-                    .strokeBorder(
-                        Color.red.opacity(0.18),
-                        lineWidth: 0.8
-                    )
-                }
-        }
-        .buttonStyle(.plain)
     }
 }
 
-#Preview {
-    Text("Show Detail Preview")
+#if DEBUG
+#Preview("Upcoming") {
+    NavigationStack {
+        ShowDetailView(
+            showID: PreviewData.upcomingShow.id,
+            viewModel: previewViewModel([PreviewData.upcomingShow])
+        )
+    }
+    .preferredColorScheme(.dark)
 }
+
+#Preview("Long text, large type") {
+    NavigationStack {
+        ShowDetailView(
+            showID: PreviewData.longShow.id,
+            viewModel: previewViewModel([PreviewData.longShow])
+        )
+    }
+    .preferredColorScheme(.dark)
+    .dynamicTypeSize(.accessibility3)
+}
+
+#Preview("Not found") {
+    NavigationStack {
+        ShowDetailView(
+            showID: UUID(),
+            viewModel: previewViewModel([])
+        )
+    }
+    .preferredColorScheme(.dark)
+}
+
+@MainActor
+private func previewViewModel(_ shows: [Show]) -> ShowListViewModel {
+    let viewModel = ShowListViewModel(
+        repository: PreviewShowRepository(shows: shows)
+    )
+    viewModel.shows = shows
+    return viewModel
+}
+#endif

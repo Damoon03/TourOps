@@ -318,4 +318,35 @@ struct TourListViewModelTests {
         #expect(viewModel.errorMessage != nil)
         #expect(repository.tours == [tour])
     }
+
+    @Test
+    @MainActor
+    func cancelledLoadIsNotReportedAsAFailure() async {
+        let repository = TestTourRepository()
+        repository.error = CancellationError()
+
+        let viewModel = TourListViewModel(repository: repository)
+        await viewModel.loadTours()
+
+        #expect(viewModel.loadErrorMessage == nil)
+        #expect(viewModel.errorMessage == nil)
+        #expect(!viewModel.isLoading)
+    }
+
+    @Test
+    @MainActor
+    func successfulLoadClearsAPreviousLoadError() async {
+        let repository = TestTourRepository()
+        repository.error = RepositoryError.notFound
+
+        let viewModel = TourListViewModel(repository: repository)
+        await viewModel.loadTours()
+        #expect(viewModel.loadErrorMessage != nil)
+
+        repository.error = nil
+        await viewModel.loadTours()
+
+        #expect(viewModel.loadErrorMessage == nil)
+        #expect(viewModel.errorMessage == nil)
+    }
 }

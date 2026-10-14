@@ -18,6 +18,10 @@ final class TeamListViewModel {
     var isLoading = false
     private(set) var errorMessage: String?
 
+    /// Set only when loading fails with nothing to show. Mutation failures
+    /// use `errorMessage` alone, so a failed save never looks like a failed load.
+    private(set) var loadErrorMessage: String?
+
     init(repository: TeamRepositoryProtocol) {
         self.repository = repository
     }
@@ -27,12 +31,16 @@ final class TeamListViewModel {
 
         isLoading = shouldShowLoading
         errorMessage = nil
+        loadErrorMessage = nil
 
         do {
             teams = try await repository.fetchTeams()
+        } catch is CancellationError {
+            // A superseded load is not a failure.
         } catch {
             if teams.isEmpty {
                 errorMessage = error.localizedDescription
+                loadErrorMessage = error.localizedDescription
             }
         }
 

@@ -7,285 +7,136 @@
 
 import SwiftUI
 
-enum ShowTimeStatus {
-    case upcoming
-    case today
-    case past
-
-    init(date: Date, referenceDate: Date = Date()) {
-        let calendar = Calendar.current
-        let showDay = calendar.startOfDay(for: date)
-        let today = calendar.startOfDay(for: referenceDate)
-
-        if showDay < today {
-            self = .past
-        } else if showDay == today {
-            self = .today
-        } else {
-            self = .upcoming
-        }
-    }
-
-    var title: String {
-        switch self {
-        case .upcoming:
-            "Upcoming"
-        case .today:
-            "Today"
-        case .past:
-            "Past"
-        }
-    }
-
-    var color: Color {
-        switch self {
-        case .upcoming:
-            Palette.chipAccent
-        case .today:
-            Palette.genreJazz
-        case .past:
-            Palette.secondaryText
-        }
-    }
-}
-
-struct ShowStatusBadge: View {
-
-    let status: ShowTimeStatus
-
-    var body: some View {
-        HStack(spacing: 5) {
-            Circle()
-                .fill(status.color)
-                .frame(width: 6, height: 6)
-
-            Text(status.title)
-                .font(.caption.weight(.medium))
-                .foregroundStyle(status.color)
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 6)
-        .overlay {
-            Capsule()
-                .strokeBorder(
-                    status.color.opacity(0.65),
-                    lineWidth: 0.8
-                )
-        }
-        .fixedSize()
-    }
-}
+// MARK: - List card
 
 struct ShowView: View {
 
     let show: Show
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @ScaledMetric(relativeTo: .title) private var tileMinWidth: CGFloat = 62
+
     private var status: ShowTimeStatus {
         ShowTimeStatus(date: show.date)
     }
 
-    private var venue: String {
-        show.venue.trimmingCharacters(
-            in: .whitespacesAndNewlines
-        )
+    /// One VoiceOver announcement for the whole card, including the full date
+    /// (the visual date tile is hidden from accessibility so nothing is read
+    /// twice).
+    static func accessibilityLabel(
+        for show: Show,
+        status: ShowTimeStatus
+    ) -> String {
+        var parts = [
+            show.name.trimmed,
+            show.date.formatted(date: .complete, time: .shortened)
+        ]
+
+        if let location = show.spokenLocation {
+            parts.append(location)
+        }
+
+        parts.append(status.title)
+
+        return parts.joined(separator: ", ")
     }
 
-    private var city: String {
-        show.city.trimmingCharacters(
-            in: .whitespacesAndNewlines
-        )
+    private var layout: AnyLayout {
+        dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 12))
+            : AnyLayout(HStackLayout(alignment: .top, spacing: 14))
     }
 
     var body: some View {
-        HStack(alignment: .top, spacing: 14) {
+        layout {
             dateTile
 
             VStack(alignment: .leading, spacing: 9) {
                 HStack(alignment: .top, spacing: 8) {
                     Text(show.name)
-                        .font(
-                            .system(
-                                .headline,
-                                design: .rounded,
-                                weight: .bold
-                            )
-                        )
+                        .font(.cardTitle)
                         .foregroundStyle(Palette.primaryText)
                         .multilineTextAlignment(.leading)
-                        .lineLimit(2)
-                        .fixedSize(
-                            horizontal: false,
-                            vertical: true
-                        )
+                        .lineLimit(3)
+                        .fixedSize(horizontal: false, vertical: true)
 
                     Spacer(minLength: 0)
 
                     Image(systemName: "chevron.right")
-                        .font(
-                            .system(size: 11, weight: .semibold)
-                        )
+                        .font(.footnote.weight(.semibold))
                         .foregroundStyle(Palette.secondaryText)
-                        .padding(.top, 4)
+                        .padding(.top, 3)
                 }
 
-                HStack(spacing: 6) {
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
                     Image(systemName: "mappin.and.ellipse")
-                        .font(.system(size: 11, weight: .medium))
+                        .font(.caption.weight(.medium))
 
-                    Text(locationSummary)
+                    Text(show.locationSummary ?? "Location not set")
                         .font(.subheadline)
-                        .lineLimit(2)
+                        .lineLimit(3)
                         .multilineTextAlignment(.leading)
                 }
                 .foregroundStyle(Palette.secondaryText)
                 .frame(maxWidth: .infinity, alignment: .leading)
 
-                HStack(spacing: 8) {
-                    Text(
-                        show.date.formatted(
-                            date: .omitted,
-                            time: .shortened
-                        )
-                    )
-                    .font(.caption.weight(.medium))
-                    .foregroundStyle(Palette.primaryText)
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 8) {
+                        timeText
+                        StatusBadge(title: status.title, color: status.color)
+                    }
 
-                    ShowStatusBadge(status: status)
+                    VStack(alignment: .leading, spacing: 6) {
+                        timeText
+                        StatusBadge(title: status.title, color: status.color)
+                    }
                 }
             }
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background {
-            RoundedRectangle(
-                cornerRadius: 22,
-                style: .continuous
-            )
-            .fill(Palette.surface)
-        }
-        .overlay {
-            RoundedRectangle(
-                cornerRadius: 22,
-                style: .continuous
-            )
-            .strokeBorder(
-                Palette.hairline,
-                lineWidth: 0.7
-            )
-        }
-        .contentShape(
-            RoundedRectangle(
-                cornerRadius: 22,
-                style: .continuous
-            )
+        .cardSurface()
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(
+            Self.accessibilityLabel(for: show, status: status)
         )
-        .accessibilityElement(children: .combine)
+    }
+
+    private var timeText: some View {
+        Text(show.date.formatted(date: .omitted, time: .shortened))
+            .font(.caption.weight(.medium))
+            .foregroundStyle(Palette.primaryText)
     }
 
     private var dateTile: some View {
         VStack(spacing: 3) {
-            Text(
-                show.date.formatted(
-                    .dateTime.month(.abbreviated)
-                )
-                .uppercased()
-            )
-            .font(.system(size: 10, weight: .bold))
-            .tracking(0.9)
-            .foregroundStyle(Palette.chipAccent)
+            Text(show.date.formatted(.dateTime.month(.abbreviated)).uppercased())
+                .eyebrowStyle(Palette.chipAccent)
 
-            Text(
-                show.date.formatted(
-                    .dateTime.day()
-                )
-            )
-            .font(
-                .system(
-                    size: 27,
-                    weight: .bold,
-                    design: .rounded
-                )
-            )
-            .foregroundStyle(Palette.primaryText)
+            Text(show.date.formatted(.dateTime.day()))
+                .font(.system(.title, design: .rounded, weight: .bold))
+                .foregroundStyle(Palette.primaryText)
 
             Image(systemName: "calendar")
-                .font(.system(size: 11, weight: .medium))
+                .font(.caption2.weight(.medium))
                 .foregroundStyle(Palette.secondaryText)
         }
-        .frame(width: 62, height: 86)
+        .padding(.horizontal, 6)
+        .padding(.vertical, 10)
+        .frame(minWidth: tileMinWidth)
+        .fixedSize()
         .background {
             RoundedRectangle(
-                cornerRadius: 16,
+                cornerRadius: Radius.control,
                 style: .continuous
             )
             .fill(Palette.surfaceRaised)
         }
         .accessibilityHidden(true)
     }
-
-    private var locationSummary: String {
-        switch (venue.isEmpty, city.isEmpty) {
-        case (false, false):
-            "\(venue) · \(city)"
-        case (false, true):
-            venue
-        case (true, false):
-            city
-        case (true, true):
-            "Location not set"
-        }
-    }
 }
 
-struct ShowEditorField: View {
-
-    let title: String
-    let prompt: String
-    let symbol: String
-
-    @Binding var text: String
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(title.uppercased())
-                .font(.system(size: 10, weight: .bold))
-                .tracking(0.9)
-                .foregroundStyle(Palette.secondaryText)
-
-            HStack(spacing: 12) {
-                Image(systemName: symbol)
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundStyle(Palette.chipAccent)
-                    .frame(width: 22)
-
-                TextField(prompt, text: $text)
-                    .font(.body)
-                    .foregroundStyle(Palette.primaryText)
-                    .textInputAutocapitalization(.words)
-                    .autocorrectionDisabled()
-            }
-            .padding(.horizontal, 14)
-            .frame(minHeight: 48)
-            .background {
-                RoundedRectangle(
-                    cornerRadius: 14,
-                    style: .continuous
-                )
-                .fill(Palette.canvas.opacity(0.72))
-            }
-            .overlay {
-                RoundedRectangle(
-                    cornerRadius: 14,
-                    style: .continuous
-                )
-                .strokeBorder(
-                    Palette.hairline,
-                    lineWidth: 0.7
-                )
-            }
-        }
-    }
-}
+// MARK: - Date and time editor
 
 struct ShowDateTimeEditor: View {
 
@@ -294,10 +145,7 @@ struct ShowDateTimeEditor: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             VStack(alignment: .leading, spacing: 5) {
-                Text("SCHEDULE")
-                    .font(.system(size: 11, weight: .bold))
-                    .tracking(1.2)
-                    .foregroundStyle(Palette.secondaryText)
+                SectionHeading("SCHEDULE")
 
                 Text("Date and time")
                     .font(.headline)
@@ -314,47 +162,53 @@ struct ShowDateTimeEditor: View {
             .foregroundStyle(Palette.primaryText)
         }
         .padding(18)
-        .background {
-            RoundedRectangle(
-                cornerRadius: 23,
-                style: .continuous
-            )
-            .fill(Palette.surface)
-        }
-        .overlay {
-            RoundedRectangle(
-                cornerRadius: 23,
-                style: .continuous
-            )
-            .strokeBorder(
-                Palette.hairline,
-                lineWidth: 0.7
-            )
-        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .cardSurface()
     }
 }
 
-#Preview {
+#if DEBUG
+#Preview("Upcoming, today, past") {
     ZStack {
         Palette.canvas.ignoresSafeArea()
 
         ScrollView {
             VStack(spacing: 12) {
-                ShowView(
-                    show: Show(
-                        id: UUID(),
-                        tourID: UUID(),
-                        name: "Live in London",
-                        venue: "Roundhouse",
-                        city: "London",
-                        date: .now.addingTimeInterval(86_400 * 7),
-                        createdAt: .now,
-                        version: 1
-                    )
-                )
+                ShowView(show: PreviewData.upcomingShow)
+                ShowView(show: PreviewData.todayShow)
+                ShowView(show: PreviewData.pastShow)
             }
             .padding(20)
         }
     }
     .preferredColorScheme(.dark)
 }
+
+#Preview("Long text") {
+    ZStack {
+        Palette.canvas.ignoresSafeArea()
+
+        ScrollView {
+            ShowView(show: PreviewData.longShow)
+                .padding(20)
+        }
+    }
+    .preferredColorScheme(.dark)
+}
+
+#Preview("Accessibility text size") {
+    ZStack {
+        Palette.canvas.ignoresSafeArea()
+
+        ScrollView {
+            VStack(spacing: 12) {
+                ShowView(show: PreviewData.upcomingShow)
+                ShowView(show: PreviewData.longShow)
+            }
+            .padding(20)
+        }
+    }
+    .preferredColorScheme(.dark)
+    .dynamicTypeSize(.accessibility3)
+}
+#endif

@@ -14,10 +14,18 @@ struct TourDetailView: View {
     let showRepository: ShowRepositoryProtocol
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(DataRefreshSignal.self) private var refreshSignal
 
     @State private var showingEditTour = false
     @State private var showingDeleteConfirmation = false
     @State private var showingError = false
+    @State private var gate = SubmissionGate()
+
+    /// `nil` until the shows have been read, or if reading them failed. The
+    /// summary and the delete message then say less rather than guess.
+    @State private var summary: TourSchedule.ShowSummary?
+
+    @ScaledMetric(relativeTo: .title) private var heroIconSize: CGFloat = 62
 
     private var tour: Tour? {
         viewModel.tours.first { $0.id == tourID }
@@ -26,47 +34,38 @@ struct TourDetailView: View {
     var body: some View {
         Group {
             if let tour {
-                ZStack {
-                    Palette.canvas.ignoresSafeArea()
+                ScreenScroll {
+                    heroCard(for: tour)
+                    scheduleCard(for: tour)
+                    showsLink(for: tour)
 
-                    ScrollView {
-                        VStack(alignment: .leading, spacing: 18) {
-                            heroCard(for: tour)
-                            scheduleCard(for: tour)
-                            showsCard(for: tour)
-                            deleteButton
-                        }
-                        .padding(.horizontal, 20)
-                        .padding(.top, 16)
-                        .padding(.bottom, 36)
+                    DestructiveButton(
+                        title: "Delete Tour",
+                        hint: "Asks for confirmation before deleting this tour.",
+                        isDisabled: gate.isRunning
+                    ) {
+                        showingDeleteConfirmation = true
                     }
-                    .scrollIndicators(.hidden)
                 }
             } else {
                 ContentUnavailableView(
                     "Tour Not Found",
                     systemImage: "music.note.list",
-                    description: Text(
-                        "This tour is no longer available."
-                    )
+                    description: Text("This tour is no longer available.")
                 )
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(Palette.canvas.ignoresSafeArea())
             }
         }
-        .navigationTitle(tour?.name ?? "Tour")
+        .navigationTitle("Tour")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbarBackground(
-            Palette.canvas,
-            for: .navigationBar
-        )
-        .toolbarColorScheme(.dark, for: .navigationBar)
+        .toolbarBackground(Palette.canvas, for: .navigationBar)
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button("Edit") {
                     showingEditTour = true
                 }
-                .disabled(tour == nil)
+                .disabled(tour == nil || gate.isRunning)
             }
         }
         .sheet(isPresented: $showingEditTour) {
@@ -75,8 +74,6 @@ struct TourDetailView: View {
                     viewModel: viewModel,
                     tour: tour
                 )
-                .preferredColorScheme(.dark)
-                .tint(Palette.accent)
             }
         }
         .confirmationDialog(
@@ -84,23 +81,13 @@ struct TourDetailView: View {
             isPresented: $showingDeleteConfirmation,
             titleVisibility: .visible
         ) {
-            Button("Delete", role: .destructive) {
-                guard let tour else { return }
-
-                Task {
-                    let success = await viewModel.deleteTour(tour)
-
-                    if success {
-                        dismiss()
-                    } else {
-                        showingError = true
-                    }
-                }
+            Button("Delete Tour", role: .destructive) {
+                delete()
             }
 
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("This action cannot be undone.")
+            Text(DeletionMessage.tour(showCount: summary?.showCount))
         }
         .alert(
             "Couldn’t Delete Tour",
@@ -110,256 +97,185 @@ struct TourDetailView: View {
                 viewModel.dismissError()
             }
         } message: {
-            Text(
-                viewModel.errorMessage
-                ?? "Something went wrong."
-            )
+            Text(viewModel.errorMessage ?? "Something went wrong.")
         }
-        .tint(Palette.accent)
-        .preferredColorScheme(.dark)
+        .task(id: refreshSignal.generation) {
+            await loadSummary()
+        }
+    }
+
+    private func loadSummary() async {
+        do {
+            let shows = try await showRepository.fetchShows()
+            summary = TourSchedule.showSummary(
+                forTourID: tourID,
+                shows: shows
+            )
+        } catch {
+            // Keep any earlier summary; the rest of the screen still works.
+        }
+    }
+
+    private func delete() {
+        guard !gate.isRunning, let tour else {
+            return
+        }
+
+        Task {
+            let result = await gate.run({
+                await viewModel.deleteTour(tour)
+            })
+
+            switch result {
+            case .some(true):
+                dismiss()
+            case .some(false):
+                showingError = true
+            case .none:
+                break
+            }
+        }
     }
 
     // MARK: - Hero
 
     private func heroCard(for tour: Tour) -> some View {
-        VStack(alignment: .leading, spacing: 15) {
-            HStack {
+        let status = TourTimelineStatus(tour: tour)
+
+        return VStack(alignment: .leading, spacing: 16) {
+            HStack(alignment: .top) {
                 RoundedRectangle(
-                    cornerRadius: 17,
+                    cornerRadius: Radius.control,
                     style: .continuous
                 )
                 .fill(Palette.accent.opacity(0.22))
                 .overlay {
                     Image(systemName: "music.note.list")
-                        .font(.system(size: 27, weight: .semibold))
+                        .font(.title2.weight(.semibold))
                         .foregroundStyle(Palette.chipAccent)
                 }
-                .frame(width: 62, height: 62)
+                .frame(width: heroIconSize, height: heroIconSize)
+                .accessibilityHidden(true)
 
                 Spacer()
 
-                TourStatusBadge(
-                    status: TourTimelineStatus(tour: tour)
-                )
+                StatusBadge(title: status.title, color: status.color)
             }
 
             VStack(alignment: .leading, spacing: 7) {
                 Text("TOUR OVERVIEW")
-                    .font(.system(size: 10, weight: .bold))
-                    .tracking(1.3)
-                    .foregroundStyle(Palette.chipAccent)
+                    .eyebrowStyle(Palette.chipAccent)
 
                 Text(tour.name)
-                    .font(
-                        .system(
-                            size: 27,
-                            weight: .bold,
-                            design: .rounded
-                        )
-                    )
+                    .font(.heroTitle)
                     .foregroundStyle(Palette.primaryText)
                     .fixedSize(horizontal: false, vertical: true)
-
-                Text("Tour schedule and live performances")
-                    .font(.subheadline)
-                    .foregroundStyle(Palette.secondaryText)
+                    .accessibilityAddTraits(.isHeader)
             }
         }
         .padding(19)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background {
-            RoundedRectangle(
-                cornerRadius: 25,
-                style: .continuous
-            )
-            .fill(Palette.surface)
-        }
-        .overlay {
-            RoundedRectangle(
-                cornerRadius: 25,
-                style: .continuous
-            )
-            .strokeBorder(
-                Palette.hairline,
-                lineWidth: 0.7
-            )
-        }
+        .cardSurface(radius: Radius.hero)
     }
 
     // MARK: - Schedule
 
     private func scheduleCard(for tour: Tour) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text("SCHEDULE")
-                .font(.system(size: 11, weight: .bold))
-                .tracking(1.2)
-                .foregroundStyle(Palette.secondaryText)
-                .padding(.bottom, 8)
-
-            scheduleRow(
+        DetailCard(heading: "SCHEDULE") {
+            DetailRow(
                 title: "Start date",
-                date: tour.startDate,
+                value: tour.startDate.formatted(date: .long, time: .omitted),
                 symbol: "calendar"
             )
 
-            Rectangle()
-                .fill(Palette.hairline)
-                .frame(height: 0.7)
+            HairlineDivider()
 
-            scheduleRow(
+            DetailRow(
                 title: "End date",
-                date: tour.endDate,
+                value: tour.endDate.formatted(date: .long, time: .omitted),
                 symbol: "calendar.badge.clock"
             )
         }
-        .padding(18)
-        .background {
-            RoundedRectangle(
-                cornerRadius: 23,
-                style: .continuous
-            )
-            .fill(Palette.surface)
-        }
-        .overlay {
-            RoundedRectangle(
-                cornerRadius: 23,
-                style: .continuous
-            )
-            .strokeBorder(
-                Palette.hairline,
-                lineWidth: 0.7
-            )
-        }
-    }
-
-    private func scheduleRow(
-        title: String,
-        date: Date,
-        symbol: String
-    ) -> some View {
-        HStack(spacing: 13) {
-            Image(systemName: symbol)
-                .font(.system(size: 16, weight: .medium))
-                .foregroundStyle(Palette.chipAccent)
-                .frame(width: 23)
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text(title)
-                    .font(.caption)
-                    .foregroundStyle(Palette.secondaryText)
-
-                Text(
-                    date.formatted(
-                        date: .long,
-                        time: .omitted
-                    )
-                )
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(Palette.primaryText)
-            }
-
-            Spacer(minLength: 0)
-        }
-        .padding(.vertical, 13)
     }
 
     // MARK: - Shows
 
-    private func showsCard(for tour: Tour) -> some View {
+    private func showsLink(for tour: Tour) -> some View {
         NavigationLink {
             ShowListView(
                 repository: showRepository,
                 tourID: tour.id
             )
         } label: {
-            HStack(spacing: 14) {
-                RoundedRectangle(
-                    cornerRadius: 16,
-                    style: .continuous
-                )
-                .fill(Palette.accent.opacity(0.20))
-                .overlay {
-                    Image(systemName: "music.mic")
-                        .font(.system(size: 21, weight: .semibold))
-                        .foregroundStyle(Palette.chipAccent)
-                }
-                .frame(width: 52, height: 52)
-
-                VStack(alignment: .leading, spacing: 5) {
-                    Text("Shows")
-                        .font(.headline)
-                        .foregroundStyle(Palette.primaryText)
-
-                    Text("Manage individual live performances")
-                        .font(.caption)
-                        .foregroundStyle(Palette.secondaryText)
-                        .fixedSize(
-                            horizontal: false,
-                            vertical: true
-                        )
-                }
-
-                Spacer(minLength: 4)
-
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(Palette.secondaryText)
-            }
-            .padding(16)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background {
-                RoundedRectangle(
-                    cornerRadius: 23,
-                    style: .continuous
-                )
-                .fill(Palette.surface)
-            }
-            .overlay {
-                RoundedRectangle(
-                    cornerRadius: 23,
-                    style: .continuous
-                )
-                .strokeBorder(
-                    Palette.hairline,
-                    lineWidth: 0.7
-                )
-            }
+            NavigationCardLabel(
+                symbol: "music.mic",
+                title: "Shows",
+                lines: showLines
+            )
         }
-        .buttonStyle(.plain)
+        .buttonStyle(CardPressStyle())
+        .accessibilityHint("Opens the shows for this tour")
     }
 
-    // MARK: - Delete
-
-    private var deleteButton: some View {
-        Button(role: .destructive) {
-            showingDeleteConfirmation = true
-        } label: {
-            Label("Delete Tour", systemImage: "trash")
-                .font(.subheadline.weight(.semibold))
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 15)
-                .background {
-                    RoundedRectangle(
-                        cornerRadius: 17,
-                        style: .continuous
-                    )
-                    .fill(Color.red.opacity(0.08))
-                }
-                .overlay {
-                    RoundedRectangle(
-                        cornerRadius: 17,
-                        style: .continuous
-                    )
-                    .strokeBorder(
-                        Color.red.opacity(0.18),
-                        lineWidth: 0.8
-                    )
-                }
+    private var showLines: [String] {
+        guard let summary else {
+            return ["Manage individual live performances"]
         }
-        .buttonStyle(.plain)
+
+        guard summary.showCount > 0 else {
+            return ["No shows yet. Add the first one."]
+        }
+
+        var lines = [
+            summary.showCount == 1 ? "1 show" : "\(summary.showCount) shows"
+        ]
+
+        if let next = summary.nextShow {
+            let date = next.date.formatted(date: .abbreviated, time: .omitted)
+            lines.append("Next: \(next.name.trimmed), \(date)")
+        } else {
+            lines.append("No upcoming shows")
+        }
+
+        return lines
     }
 }
 
-#Preview {
-    Text("Tour Detail Preview")
+#if DEBUG
+@MainActor
+private func previewDetail(
+    tour: Tour,
+    shows: [Show]
+) -> some View {
+    let viewModel = TourListViewModel(
+        repository: PreviewTourRepository(tours: [tour])
+    )
+    viewModel.tours = [tour]
+
+    return NavigationStack {
+        TourDetailView(
+            tourID: tour.id,
+            viewModel: viewModel,
+            showRepository: PreviewShowRepository(shows: shows)
+        )
+    }
+    .environment(DataRefreshSignal())
+    .preferredColorScheme(.dark)
 }
+
+#Preview("With shows") {
+    previewDetail(
+        tour: PreviewData.upcomingTour,
+        shows: [PreviewData.upcomingShow, PreviewData.pastShow]
+    )
+}
+
+#Preview("No shows") {
+    previewDetail(tour: PreviewData.upcomingTour, shows: [])
+}
+
+#Preview("Long text, large type") {
+    previewDetail(tour: PreviewData.longTour, shows: [PreviewData.longShow])
+        .dynamicTypeSize(.accessibility3)
+}
+#endif
