@@ -11,7 +11,14 @@ import UIKit
 struct TeamImageProcessorTests {
 
     private func jpeg(width: CGFloat, height: CGFloat) -> Data {
-        let renderer = UIGraphicsImageRenderer(size: CGSize(width: width, height: height))
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+
+        let renderer = UIGraphicsImageRenderer(
+            size: CGSize(width: width, height: height),
+            format: format
+        )
+
         return renderer.jpegData(withCompressionQuality: 0.9) { context in
             UIColor.red.setFill()
             context.fill(CGRect(x: 0, y: 0, width: width, height: height))
@@ -31,7 +38,7 @@ struct TeamImageProcessorTests {
         let image = try #require(UIImage(data: output))
         let longest = max(image.size.width * image.scale, image.size.height * image.scale)
 
-        #expect(longest <= TeamImageProcessor.maxPixelDimension)
+        #expect(longest <= CGFloat(TeamImageProcessor.maxPixelDimension))
     }
 
     @Test
