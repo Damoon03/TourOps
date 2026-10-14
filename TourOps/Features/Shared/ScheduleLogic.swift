@@ -64,17 +64,24 @@ enum ShowSchedule {
         return Sections(upcoming: upcoming, past: past)
     }
 
-    /// The earliest show that has not been over for a whole day, keeping the
-    /// first one found when two share the same date.
+    /// Whether a show is still ahead of `now`. This is an instant comparison:
+    /// a show that starts at or before `now` is not upcoming, even if it is
+    /// on the same calendar day. (Day-level labels such as "Today" are a
+    /// separate, calendar-day concept; see `ShowTimeStatus`.)
+    static func isAhead(_ show: Show, of now: Date) -> Bool {
+        show.date > now
+    }
+
+    /// The earliest show that starts after `now`, keeping the first one found
+    /// when two share the same date.
     static func nextShow(
         in shows: [Show],
         now: Date = Date(),
         calendar: Calendar = .current
     ) -> Show? {
-        let today = calendar.startOfDay(for: now)
         var next: Show?
 
-        for show in shows where calendar.startOfDay(for: show.date) >= today {
+        for show in shows where isAhead(show, of: now) {
             if let current = next, current.date <= show.date {
                 continue
             }
@@ -170,7 +177,7 @@ enum TourSchedule {
 
 enum TeamSchedule {
 
-    /// The next upcoming show for each team, resolved through its tours.
+    /// The next show after `now` for each team, resolved through its tours.
     /// Used by the Teams list and, for a single team, by Team detail so both
     /// screens agree.
     static func nextShowsByTeamID(
@@ -184,10 +191,9 @@ enum TeamSchedule {
             uniquingKeysWith: { first, _ in first }
         )
 
-        let today = calendar.startOfDay(for: now)
         var upcoming: [UUID: Show] = [:]
 
-        for show in shows where calendar.startOfDay(for: show.date) >= today {
+        for show in shows where ShowSchedule.isAhead(show, of: now) {
             guard let teamID = teamIDByTourID[show.tourID] else {
                 continue
             }

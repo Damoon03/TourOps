@@ -33,6 +33,8 @@ final class TourListViewModel {
 
         do {
             tours = try await repository.fetchTours()
+        } catch is CancellationError {
+            // A superseded load is not a failure.
         } catch {
             errorMessage = error.localizedDescription
             loadErrorMessage = error.localizedDescription

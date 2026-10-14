@@ -35,6 +35,8 @@ final class TeamListViewModel {
 
         do {
             teams = try await repository.fetchTeams()
+        } catch is CancellationError {
+            // A superseded load is not a failure.
         } catch {
             if teams.isEmpty {
                 errorMessage = error.localizedDescription

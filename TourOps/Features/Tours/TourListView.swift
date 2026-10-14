@@ -81,7 +81,9 @@ struct TourListView: View {
 
     private func load() async {
         await viewModel.loadTours()
-        hasCompletedFirstLoad = true
+        if !Task.isCancelled {
+            hasCompletedFirstLoad = true
+        }
     }
 
     @ViewBuilder

@@ -98,7 +98,9 @@ struct TeamListView: View {
             .task(id: refreshSignal.generation) {
                 await viewModel.loadTeams()
                 await loadUpcomingShows()
-                hasCompletedFirstLoad = true
+                if !Task.isCancelled {
+                    hasCompletedFirstLoad = true
+                }
             }
         }
     }

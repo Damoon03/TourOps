@@ -32,17 +32,10 @@ struct ShowListView: View {
         )
     }
 
-    private var tourShows: [Show] {
-        viewModel.shows.filter { $0.tourID == tourID }
-    }
-
-    private var phase: ListPhase<ShowSchedule.Sections> {
-        ListPhase.resolve(
-            isLoading: viewModel.isLoading,
-            hasCompletedFirstLoad: hasCompletedFirstLoad,
-            isEmpty: tourShows.isEmpty,
-            loadError: viewModel.loadErrorMessage,
-            populated: { ShowSchedule.sections(from: tourShows) }
+    private var phase: ListPhase<[Show]> {
+        viewModel.listPhase(
+            forTourID: tourID,
+            hasCompletedFirstLoad: hasCompletedFirstLoad
         )
     }
 
@@ -78,11 +71,15 @@ struct ShowListView: View {
 
     private func load() async {
         await viewModel.loadShows()
-        hasCompletedFirstLoad = true
+
+        // A cancelled load was superseded; the replacement marks completion.
+        if !Task.isCancelled {
+            hasCompletedFirstLoad = true
+        }
     }
 
     @ViewBuilder
-    private func content(for phase: ListPhase<ShowSchedule.Sections>) -> some View {
+    private func content(for phase: ListPhase<[Show]>) -> some View {
         switch phase {
         case .loading:
             LoadingPanel(message: "Loading shows…")
@@ -108,7 +105,9 @@ struct ShowListView: View {
                 showingCreateShow = true
             }
 
-        case .populated(let sections):
+        case .populated(let shows):
+            let sections = ShowSchedule.sections(from: shows)
+
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 12) {
                     ScreenHeader(
