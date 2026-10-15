@@ -199,17 +199,15 @@ struct TourOpsApp: App {
                     LoginView()
 
                 case .signedIn:
-                    TeamListView(
-                        repository: teamRepository,
+                    AppShell(
+                        teamRepository: teamRepository,
                         tourRepository: tourRepository,
                         showRepository: showRepository
                     )
                 }
             }
             .environment(refreshSignal)
-            // TourOps is dark-only. Set once here so every screen and sheet
-            // inherits it instead of repeating it per screen.
-            .preferredColorScheme(.dark)
+            // The app follows the system Light / Dark setting.
             .tint(Palette.accent)
             .task {
                 await authSessionController.start()
