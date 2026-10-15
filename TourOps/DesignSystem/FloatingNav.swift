@@ -65,6 +65,7 @@ struct FloatingNavBar: View {
     @Binding var selection: AppTab
 
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Namespace private var activeTabNamespace
 
     var body: some View {
@@ -85,7 +86,6 @@ struct FloatingNavBar: View {
             x: 0,
             y: 6
         )
-        .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
     }
 
     private func tabButton(_ tab: AppTab) -> some View {
@@ -98,11 +98,21 @@ struct FloatingNavBar: View {
         } label: {
             HStack(spacing: 8) {
                 Image(systemName: tab.symbol)
-                    .font(.body.weight(.medium))
+                    .font(
+                        dynamicTypeSize.isAccessibilitySize
+                            ? Font.system(size: 24, weight: .medium)
+                            : Font.body.weight(.medium)
+                    )
 
-                Text(tab.title)
-                    .font(.body.weight(isSelected ? .bold : .medium))
-                    .lineLimit(1)
+                // At accessibility sizes the capsule cannot hold both labels
+                // beside the add button, so it shows icons only. The tabs keep
+                // their VoiceOver labels and the 52 pt touch target.
+                if !dynamicTypeSize.isAccessibilitySize {
+                    Text(tab.title)
+                        .font(.body.weight(isSelected ? .bold : .medium))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                }
             }
             .foregroundStyle(isSelected ? Palette.primaryText : Palette.secondaryText)
             .padding(.horizontal, 12)
@@ -181,6 +191,8 @@ struct CreateMenu: View {
     let onSelect: (CreateAction) -> Void
 
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @ScaledMetric(relativeTo: .subheadline) private var iconWell: CGFloat = 32
 
     var body: some View {
         VStack(spacing: 2) {
@@ -212,7 +224,8 @@ struct CreateMenu: View {
             )
         }
         .padding(8)
-        .frame(width: 208)
+        // A fixed 208 pt at normal sizes; the full width when text is large.
+        .frame(maxWidth: dynamicTypeSize.isAccessibilitySize ? .infinity : 208)
         .background {
             RoundedRectangle(cornerRadius: 26, style: .continuous)
                 .fill(.regularMaterial)
@@ -227,7 +240,6 @@ struct CreateMenu: View {
             x: 0,
             y: 8
         )
-        .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
     }
 
     private func row(
@@ -245,7 +257,7 @@ struct CreateMenu: View {
                 Image(systemName: symbol)
                     .font(.footnote.weight(.medium))
                     .foregroundStyle(Palette.primaryText)
-                    .frame(width: 32, height: 32)
+                    .frame(width: iconWell, height: iconWell)
                     .background(Circle().fill(Palette.surfaceRaised))
 
                 Text(title)
