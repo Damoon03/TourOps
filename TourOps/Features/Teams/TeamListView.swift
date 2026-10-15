@@ -6,7 +6,6 @@
 //
 
 import SwiftUI
-import UIKit
 
 #if DEBUG
 import SwiftData
@@ -19,12 +18,13 @@ struct TeamListView: View {
     let showRepository: ShowRepositoryProtocol
 
     @Environment(DataRefreshSignal.self) private var refreshSignal
+    @Environment(\.floatingNavInset) private var navInset
 
     @State private var viewModel: TeamListViewModel
     @State private var showingCreateTeam = false
     @State private var hasCompletedFirstLoad = false
     @State private var selectedCountry: String?
-    @State private var nextShowsByTeamID: [UUID: Show] = [:]
+    @State private var overviewByTeamID: [UUID: TeamOverview.Info] = [:]
 
     init(
         repository: TeamRepositoryProtocol,
@@ -97,7 +97,7 @@ struct TeamListView: View {
             }
             .task(id: refreshSignal.generation) {
                 await viewModel.loadTeams()
-                await loadUpcomingShows()
+                await loadOverviews()
                 if !Task.isCancelled {
                     hasCompletedFirstLoad = true
                 }
@@ -105,53 +105,58 @@ struct TeamListView: View {
         }
     }
 
-    private func loadUpcomingShows() async {
+    /// Per-team tour and show counts, current tour and next show, all derived
+    /// from the existing tours and shows.
+    private func loadOverviews() async {
+        let teams = viewModel.teams
+
         do {
             async let fetchedTours = tourRepository.fetchTours()
             async let fetchedShows = showRepository.fetchShows()
             let (tours, shows) = try await (fetchedTours, fetchedShows)
 
-            let upcoming = TeamSchedule.nextShowsByTeamID(
-                tours: tours,
-                shows: shows
+            overviewByTeamID = Dictionary(
+                teams.map { team in
+                    (
+                        team.id,
+                        TeamOverview.info(
+                            forTeamID: team.id,
+                            tours: tours,
+                            shows: shows
+                        )
+                    )
+                },
+                uniquingKeysWith: { first, _ in first }
             )
-
-            nextShowsByTeamID = upcoming
+        } catch is CancellationError {
+            // A superseded load is not a failure.
         } catch {
-            // Team loading remains independent; show details are supplementary.
-            nextShowsByTeamID = [:]
+            // Team loading remains independent; the summaries are supplementary.
+            overviewByTeamID = [:]
         }
     }
 
     // MARK: - Masthead
 
     private func masthead(for phase: ListPhase<[Team]>) -> some View {
-        var teamCount: Int?
-        var showsCreateButton = true
+        var teams: [Team] = []
 
-        switch phase {
-        case .populated(let teams):
-            teamCount = teams.count
-        case .empty:
-            showsCreateButton = false
-        case .loading, .failed:
-            break
+        if case .populated(let populated) = phase {
+            teams = populated
         }
 
-        return HStack(alignment: .center, spacing: 16) {
-            VStack(alignment: .leading, spacing: 5) {
+        let countries = Self.countries(in: teams)
+        let activeCountry = selectedCountry.flatMap { countries.contains($0) ? $0 : nil }
+
+        return HStack(alignment: .top, spacing: 16) {
+            VStack(alignment: .leading, spacing: 4) {
                 Text("Teams")
-                    .font(.system(.largeTitle, design: .rounded, weight: .bold))
+                    .font(.screenTitle)
                     .foregroundStyle(Palette.primaryText)
                     .accessibilityAddTraits(.isHeader)
 
-                if let teamCount {
-                    let countLabel = teamCount == 1 ? "1 team" : "\(teamCount) teams"
-                    Text("Your touring teams · \(countLabel)")
-                        .font(.subheadline)
-                        .foregroundStyle(Palette.secondaryText)
-                } else {
-                    Text("Your touring teams")
+                if let subtitle = subtitle(for: teams) {
+                    Text(subtitle)
                         .font(.subheadline)
                         .foregroundStyle(Palette.secondaryText)
                 }
@@ -159,8 +164,8 @@ struct TeamListView: View {
 
             Spacer(minLength: 8)
 
-            if showsCreateButton {
-                createButton
+            if countries.count > 1 {
+                countryMenu(countries: countries, active: activeCountry)
             }
         }
         .padding(.horizontal, 20)
@@ -169,20 +174,40 @@ struct TeamListView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private var createButton: some View {
-        Button {
-            showingCreateTeam = true
-        } label: {
-            Image(systemName: "plus")
-                .font(.title3.weight(.semibold))
-                .foregroundStyle(.white)
-                .frame(width: 48, height: 48)
-                .background(Circle().fill(Palette.accent))
-                .contentShape(Circle())
+    /// "3 teams · 4 tours". The tour count appears once tours have loaded.
+    private func subtitle(for teams: [Team]) -> String? {
+        guard !teams.isEmpty else {
+            return nil
         }
-        .buttonStyle(PressFadeStyle())
-        .accessibilityLabel("New Team")
-        .accessibilityHint("Creates a new team")
+
+        let teamText = teams.count == 1 ? "1 team" : "\(teams.count) teams"
+
+        guard !overviewByTeamID.isEmpty else {
+            return teamText
+        }
+
+        let tourCount = teams.reduce(0) { $0 + (overviewByTeamID[$1.id]?.tourCount ?? 0) }
+        let tourText = tourCount == 1 ? "1 tour" : "\(tourCount) tours"
+
+        return "\(teamText) · \(tourText)"
+    }
+
+    /// The country filter keeps its place from the previous design, now
+    /// behind the "…" button.
+    private func countryMenu(countries: [String], active: String?) -> some View {
+        Menu {
+            Picker("Country", selection: $selectedCountry) {
+                Text("All countries").tag(String?.none)
+
+                ForEach(countries, id: \.self) { country in
+                    Text(country).tag(Optional(country))
+                }
+            }
+        } label: {
+            RoundIconLabel(systemName: "ellipsis")
+        }
+        .accessibilityLabel("Filter teams")
+        .accessibilityValue(active ?? "All countries")
     }
 
     // MARK: - Content
@@ -203,7 +228,7 @@ struct TeamListView: View {
             ) {
                 Task {
                     await viewModel.loadTeams()
-                    await loadUpcomingShows()
+                    await loadOverviews()
                 }
             }
 
@@ -232,101 +257,45 @@ struct TeamListView: View {
             return team.country.trimmingCharacters(in: .whitespacesAndNewlines) == activeCountry
         }
 
-        return VStack(spacing: 0) {
-            if countries.count > 1 {
-                ScrollView(.horizontal) {
-                    HStack(spacing: 9) {
-                        FilterPill(title: "All", isSelected: activeCountry == nil) {
-                            selectedCountry = nil
-                        }
-
-                        ForEach(countries, id: \.self) { country in
-                            FilterPill(title: country, isSelected: activeCountry == country) {
-                                selectedCountry = country
-                            }
-                        }
+        return ScrollView {
+            LazyVStack(spacing: 12) {
+                ForEach(visible) { team in
+                    NavigationLink {
+                        TeamDetailView(
+                            teamID: team.id,
+                            viewModel: viewModel,
+                            tourRepository: tourRepository,
+                            showRepository: showRepository
+                        )
+                    } label: {
+                        TeamCard(team: team, info: overviewByTeamID[team.id])
                     }
-                    .padding(.horizontal, 20)
-                    .padding(.vertical, 3)
+                    .buttonStyle(CardPressStyle())
+                    .accessibilityHint("Opens team details")
                 }
-                .scrollIndicators(.hidden)
-                .padding(.top, 4)
-                .padding(.bottom, 12)
             }
-
-            ScrollView {
-                LazyVStack(spacing: 12) {
-                    ForEach(visible) { team in
-                        NavigationLink {
-                            TeamDetailView(
-                                teamID: team.id,
-                                viewModel: viewModel,
-                                tourRepository: tourRepository,
-                                showRepository: showRepository
-                            )
-                        } label: {
-                            TeamCard(team: team, nextShow: nextShowsByTeamID[team.id])
-                        }
-                        .buttonStyle(CardPressStyle())
-                        .accessibilityHint("Opens team details")
-                    }
-                }
-                .padding(.horizontal, 20)
-                .padding(.top, countries.count > 1 ? 3 : 10)
-                .padding(.bottom, 32)
-            }
-            .scrollIndicators(.hidden)
+            .padding(.horizontal, 20)
+            .padding(.top, 4)
+            .padding(.bottom, 32 + navInset)
         }
+        .scrollIndicators(.hidden)
     }
 
 }
 
-// MARK: - Filter pill
+// MARK: - Tag
 
-private struct FilterPill: View {
-    let title: String
-    let isSelected: Bool
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            Text(title)
-                .font(.subheadline.weight(isSelected ? .semibold : .medium))
-                .foregroundStyle(isSelected ? Palette.canvas : Palette.secondaryText)
-                .padding(.horizontal, 16)
-                .frame(minHeight: 42)
-                .background(
-                    Capsule().fill(isSelected ? Color.white : Palette.surface)
-                )
-                .overlay {
-                    Capsule()
-                        .strokeBorder(isSelected ? Color.clear : Palette.hairline, lineWidth: 0.7)
-                }
-                .contentShape(Capsule())
-        }
-        .buttonStyle(.plain)
-        .accessibilityAddTraits(isSelected ? .isSelected : [])
-    }
-}
-
-// MARK: - Informational chips
-
-
-
-private struct OutlineChip: View {
+private struct TagPill: View {
     let text: String
-    let color: Color
 
     var body: some View {
         Text(text)
-            .font(.caption2.weight(.medium))
-            .foregroundStyle(color)
-            .padding(.horizontal, 7)
-            .padding(.vertical, 3)
-            .overlay {
-                Capsule()
-                    .strokeBorder(color.opacity(0.9), lineWidth: 0.8)
-            }
+            .font(.caption)
+            .foregroundStyle(Palette.secondaryText)
+            .lineLimit(1)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 4)
+            .background(Capsule().fill(Palette.surfaceRaised))
             .fixedSize(horizontal: true, vertical: false)
     }
 }
@@ -336,169 +305,101 @@ private struct OutlineChip: View {
 private struct TeamCard: View {
 
     let team: Team
-    let nextShow: Show?
+    let info: TeamOverview.Info?
 
-    @ScaledMetric(relativeTo: .body) private var avatarSize: CGFloat = 48
+    @ScaledMetric(relativeTo: .body) private var avatarSize: CGFloat = 56
 
-    private var locationTone: Color { ContinentColorMapper.color(for: country) }
+    private var detail: String {
+        let location = [team.city.trimmed, team.country.trimmed]
+            .filter { !$0.isEmpty }
+            .joined(separator: ", ")
 
-    private var genreTone: Color { GenreColorMapper.color(for: genre) }
-
-    private var genre: String {
-        team.genre.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    private var city: String {
-        team.city.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    private var country: String {
-        team.country.trimmingCharacters(in: .whitespacesAndNewlines)
+        return [team.genre.trimmed, location]
+            .filter { !$0.isEmpty }
+            .joined(separator: " · ")
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 9) {
-            HStack(alignment: .center, spacing: 10) {
-                artistImage
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top, spacing: 14) {
+                TeamAvatar(team: team, size: avatarSize, cornerRadius: Radius.control)
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text(team.name)
-                        .font(.cardTitle)
+                        .font(.title3.weight(.bold))
                         .foregroundStyle(Palette.primaryText)
                         .multilineTextAlignment(.leading)
                         .lineLimit(2)
-                        .fixedSize(horizontal: false, vertical: true)
 
-                    Text(locationSummary)
-                        .font(.footnote)
-                        .foregroundStyle(Palette.secondaryText)
-                        .lineLimit(1)
-                        .truncationMode(.tail)
+                    if !detail.isEmpty {
+                        Text(detail)
+                            .font(.subheadline)
+                            .foregroundStyle(Palette.secondaryText)
+                            .lineLimit(2)
+                    }
 
-                    if !genre.isEmpty || !country.isEmpty {
-                        HStack(spacing: 5) {
-                            if !genre.isEmpty {
-                                OutlineChip(text: genre, color: genreTone)
-                            }
-                            if !country.isEmpty {
-                                OutlineChip(text: country, color: locationTone)
-                            }
+                    if let info {
+                        HStack(spacing: 6) {
+                            TagPill(text: info.tourCount == 1 ? "1 tour" : "\(info.tourCount) tours")
+                            TagPill(text: info.showCount == 1 ? "1 show" : "\(info.showCount) shows")
                         }
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.top, 4)
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
 
                 Image(systemName: "chevron.right")
-                    .font(.caption2.weight(.semibold))
+                    .font(.footnote.weight(.semibold))
                     .foregroundStyle(Palette.secondaryText)
-                    .padding(.leading, 1)
+                    .padding(.top, 4)
                     .accessibilityHidden(true)
             }
 
-            Rectangle()
-                .fill(Palette.hairline)
-                .frame(height: 0.5)
+            if let info {
+                Rectangle()
+                    .fill(Palette.hairline)
+                    .frame(height: 0.7)
+                    .accessibilityHidden(true)
 
-            nextShowRow
+                statusRow(for: info)
+            }
         }
-        .padding(13)
+        .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
         .cardSurface()
         .accessibilityElement(children: .combine)
     }
 
-    @ViewBuilder
-    private var artistImage: some View {
-        if let imageData = team.imageData, let image = UIImage(data: imageData) {
-            Image(uiImage: image)
-                .resizable()
-                .scaledToFill()
-                .frame(width: avatarSize, height: avatarSize)
-                .clipShape(RoundedRectangle(cornerRadius: Radius.field, style: .continuous))
-                .overlay {
-                    RoundedRectangle(cornerRadius: Radius.field, style: .continuous)
-                        .strokeBorder(Palette.hairline, lineWidth: 0.8)
-                }
-                .accessibilityHidden(true)
-        } else {
-            RoundedRectangle(cornerRadius: Radius.field, style: .continuous)
-                .fill(Palette.surfaceRaised)
-                .overlay {
-                    Image(systemName: "music.mic")
-                        .font(.subheadline.weight(.medium))
-                        .foregroundStyle(Palette.secondaryText)
-                }
-                .frame(width: avatarSize, height: avatarSize)
-                .overlay {
-                    RoundedRectangle(cornerRadius: Radius.field, style: .continuous)
-                        .strokeBorder(Palette.hairline, lineWidth: 0.8)
-                }
-                .accessibilityHidden(true)
-        }
-    }
+    private func statusRow(for info: TeamOverview.Info) -> some View {
+        let isOnTour = info.currentTour != nil
 
-    @ViewBuilder
-    private var nextShowRow: some View {
-        HStack(alignment: .center, spacing: 10) {
-            Image(systemName: "calendar")
-                .font(.caption.weight(.medium))
-                .foregroundStyle(Palette.chipAccent)
-                .frame(width: 15)
+        return HStack(spacing: 8) {
+            Circle()
+                .fill(isOnTour ? Palette.orange : Palette.secondaryText.opacity(0.6))
+                .frame(width: 7, height: 7)
                 .accessibilityHidden(true)
 
-            Text("NEXT")
-                .font(.caption2.weight(.bold))
-                .tracking(0.5)
+            Text(statusText(for: info))
+                .font(.footnote)
                 .foregroundStyle(Palette.secondaryText)
+                .lineLimit(1)
+                .truncationMode(.tail)
 
-            Rectangle()
-                .fill(Palette.hairline)
-                .frame(width: 1, height: 20)
-
-            if let nextShow {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(nextShow.date.formatted(date: .abbreviated, time: .omitted))
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(Palette.primaryText)
-                        .lineLimit(1)
-
-                    Text(showLocation(nextShow))
-                        .font(.caption)
-                        .foregroundStyle(Palette.secondaryText)
-                        .lineLimit(1)
-                        .truncationMode(.tail)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-            } else {
-                Text("No upcoming shows scheduled")
-                    .font(.caption)
-                    .foregroundStyle(Palette.secondaryText)
-                    .lineLimit(1)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
+            Spacer(minLength: 0)
         }
-        .frame(minHeight: 24, alignment: .leading)
     }
 
-    private func showLocation(_ show: Show) -> String {
-        show.locationSummary ?? show.name
-    }
+    private func statusText(for info: TeamOverview.Info) -> String {
+        if let tour = info.currentTour {
+            return "On tour: \(tour.name.trimmed)"
+        }
 
-    private var locationSummary: String {
-        city.isEmpty ? "Touring team workspace" : city
-    }
-}
+        if let next = info.nextShow {
+            let date = next.date.formatted(date: .abbreviated, time: .omitted)
+            return "Next show: \(date) · \(next.locationSummary ?? next.name.trimmed)"
+        }
 
-// MARK: - Button styles
-
-private struct PressFadeStyle: ButtonStyle {
-
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .opacity(configuration.isPressed ? 0.8 : 1)
-            .scaleEffect(configuration.isPressed ? 0.94 : 1)
-            .animation(.easeOut(duration: 0.15), value: configuration.isPressed)
+        return "No upcoming shows scheduled"
     }
 }
 
@@ -605,12 +506,22 @@ private enum TeamListPreviewSupport {
     }
 }
 
-#Preview("Populated") {
+#Preview("Populated, light") {
     TeamListPreviewSupport.makeView(
         container: TeamListPreviewSupport.makeContainer(
             teams: TeamListPreviewSupport.sampleTeams
         )
     )
+    .preferredColorScheme(.light)
+}
+
+#Preview("Populated, dark") {
+    TeamListPreviewSupport.makeView(
+        container: TeamListPreviewSupport.makeContainer(
+            teams: TeamListPreviewSupport.sampleTeams
+        )
+    )
+    .preferredColorScheme(.dark)
 }
 
 #Preview("Large Text") {
