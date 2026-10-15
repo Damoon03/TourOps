@@ -13,7 +13,12 @@ struct TourListView: View {
     let teamID: UUID
     let showRepository: ShowRepositoryProtocol
 
+    /// The team that owns these tours, when the caller has it. Passed on to
+    /// tour detail to show the team's identity.
+    let team: Team?
+
     @Environment(DataRefreshSignal.self) private var refreshSignal
+    @Environment(\.floatingNavInset) private var navInset
 
     @State private var viewModel: TourListViewModel
     @State private var showingCreateTour = false
@@ -22,11 +27,13 @@ struct TourListView: View {
     init(
         repository: TourRepositoryProtocol,
         teamID: UUID,
-        showRepository: ShowRepositoryProtocol
+        showRepository: ShowRepositoryProtocol,
+        team: Team? = nil
     ) {
         self.repository = repository
         self.teamID = teamID
         self.showRepository = showRepository
+        self.team = team
 
         _viewModel = State(
             initialValue: TourListViewModel(
@@ -139,7 +146,7 @@ struct TourListView: View {
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 14)
-                .padding(.bottom, 32)
+                .padding(.bottom, 32 + navInset)
             }
             .scrollIndicators(.hidden)
         }
@@ -156,7 +163,8 @@ struct TourListView: View {
                 TourDetailView(
                     tourID: tour.id,
                     viewModel: viewModel,
-                    showRepository: showRepository
+                    showRepository: showRepository,
+                    team: team
                 )
             } label: {
                 TourView(tour: tour)
@@ -181,7 +189,6 @@ private func previewList(
         )
     }
     .environment(DataRefreshSignal())
-    .preferredColorScheme(.dark)
 }
 
 #Preview("Populated") {
