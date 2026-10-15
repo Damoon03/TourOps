@@ -1,16 +1,38 @@
+<div align="center">
+
 # TourOps
 
-An offline-first iOS app for touring teams. Teams, tours and shows are stored locally first and synchronized with a Supabase (PostgreSQL) backend when the network allows.
+**Tour management for touring teams, built offline-first.**
 
-TourOps is a portfolio project. Its purpose is to work through the engineering problems of offline-first mobile apps: durable local writes, an operation queue, optimistic concurrency, retry and failure handling, and reconciling local state with a remote source of truth. The domain is deliberately small so the focus stays on those problems.
+Plan teams, tours and shows on the road. Every change is saved on the device first and synchronized when the network allows.
+
+<br>
+
+![Swift](https://img.shields.io/badge/Swift-5-F05138?logo=swift&logoColor=white)
+![iOS](https://img.shields.io/badge/iOS-26.0%2B-1D1D1F?logo=apple&logoColor=white)
+![SwiftUI](https://img.shields.io/badge/UI-SwiftUI-0A84FF)
+![SwiftData](https://img.shields.io/badge/Persistence-SwiftData-5E5CE6)
+![Supabase](https://img.shields.io/badge/Backend-Supabase-3ECF8E?logo=supabase&logoColor=white)
+![License](https://img.shields.io/badge/License-MIT-lightgrey)
+
+<br>
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/tourops-dark.png">
+  <img alt="TourOps screens: Schedule, Teams, Tour detail, create menu and New show sheet" src="docs/images/tourops-light.png" width="100%">
+</picture>
+
+</div>
+
+<br>
 
 ## Contents
 
-- [Project status](#project-status)
-- [Domain](#domain)
+- [Overview](#overview)
+- [Interface](#interface)
+- [Features](#features)
 - [Architecture](#architecture)
-- [Synchronization design](#synchronization-design)
-- [Known limitations](#known-limitations)
+- [Synchronization](#synchronization)
 - [Testing](#testing)
 - [Getting started](#getting-started)
 - [Backend contract](#backend-contract)
@@ -18,39 +40,49 @@ TourOps is a portfolio project. Its purpose is to work through the engineering p
 - [Tech stack](#tech-stack)
 - [License](#license)
 
-## Project status
+## Overview
 
-### Implemented
-
-- Email/password sign-in through Supabase Auth; the session state decides whether the login screen or the app is shown.
-- Create, read, update and delete for teams, tours and shows, with SwiftUI navigation across the hierarchy.
-- Local-first persistence with SwiftData. Every mutation is written locally before anything is sent.
-- Local optimistic concurrency: an update based on an outdated version is rejected with `RepositoryError.staleVersion`.
-- A durable queue of `SyncOperation` records. An entity change and its operation are committed in a single `ModelContext.save()`.
-- A push sync engine with operation reduction, dependency ordering (team, then tour, then show), a retry policy, conflict detection, cancellation handling, recovery of operations left in `.processing`, and protection against lost wake-ups when sync is requested during a running sync.
-- Server-side optimistic concurrency over PostgREST (version filter plus an empty-result check).
-- A pull sync for all three entity types with status-aware reconciliation.
-- Sync triggers: after every local mutation, when the user signs in, and when the app becomes active.
-
-### Not implemented
-
-- A screen for reviewing or resolving conflicted or failed operations.
-- Background sync (`BGTaskScheduler`), network reachability monitoring, and timer-based retry with backoff.
-- Pagination or incremental pull.
-- UI tests. The UI test target contains only the Xcode template.
-- Continuous integration.
-
-See [Known limitations](#known-limitations) for the behaviors that matter before relying on the sync layer.
-
-## Domain
+TourOps is a tool for the people who run a tour: musicians, bands, artists and tour managers. It is built around one hierarchy:
 
 ```
-Team → Tour → Show
+Team  →  Tour  →  Show
 ```
 
-A team has many tours, and a tour has many shows. Relationships are stored as plain UUID references (`Tour.teamID`, `Show.tourID`), not as SwiftData relationships. Lists are filtered by parent ID on the client.
+A team has many tours, and a tour has many shows. The app answers the questions a tour manager asks all day: what is on today, what is next, and where is each team in its tour.
 
-The domain is intentionally minimal for now. Membership metadata (roles, permissions), equipment, setlists and related entities are out of scope until the sync layer is solid.
+It is also an engineering project about offline-first mobile software: durable local writes, an operation queue, optimistic concurrency, retry and failure handling, and reconciling local state with a remote source of truth. The domain is deliberately small so the focus stays on those problems.
+
+## Interface
+
+The interface follows the system appearance and ships in light and dark. Cards carry a soft shadow in light mode and a hairline border in dark mode. The primary action is ink in light mode and cream in dark mode.
+
+| Screen | What it shows |
+| --- | --- |
+| **Schedule** | The home screen. A week strip with a marker for today and dots on days that have shows, team filter chips, and a time-ruled agenda of show cards with a team-colored bar and a "Next up" label. |
+| **Teams** | One card per team with a monogram, genre and location, tour and show counts, and an "On tour" status line. |
+| **Tour** | A summary of shows, shows played and the next show, a tour timeline, and the list of upcoming shows. |
+| **Create** | A floating capsule navigation with a separate add button. The add button opens a menu to create a show, a tour or a team. |
+| **Forms** | Team, tour and show forms are bottom sheets with Cancel, a title and a Save action that states where the data goes first. |
+
+### Light
+
+![TourOps in light mode](docs/images/tourops-light.png)
+
+### Dark
+
+![TourOps in dark mode](docs/images/tourops-dark.png)
+
+## Features
+
+- **Schedule-first navigation.** Schedule and Teams are the two tabs; Schedule opens first.
+- **Team → Tour → Show management.** Create, read, update and delete at every level, with navigation across the hierarchy.
+- **Offline-first persistence.** Every mutation is written to SwiftData before anything is sent.
+- **Durable sync queue.** An entity change and its `SyncOperation` are committed in a single `ModelContext.save()`.
+- **Push and pull sync.** Version-checked writes over Supabase's REST interface, and status-aware reconciliation on pull.
+- **Sync status.** A compact pill appears only while changes are waiting to sync, so it never occupies the interface otherwise.
+- **Optimistic concurrency.** Local edits based on an outdated version are rejected, and the server enforces the same rule.
+- **Authentication.** Email and password sign-in through Supabase Auth.
+- **Accessibility.** Dynamic Type, VoiceOver labels, adaptive layouts for large text sizes, and previews in both appearances.
 
 ## Architecture
 
@@ -79,17 +111,19 @@ SyncTracking repository ──► SwiftData repository ──► SwiftData
 | Data/DTO, Data/Mappers | Wire types and Domain ⇄ DTO mapping | `ShowDTO`, `ShowMapper` |
 | Data/Repositories | SwiftData repositories, sync-tracking decorators, reconcilers | `SwiftDataShowRepository`, `SyncTrackingShowRepository`, `ShowReconciler` |
 | Data/Supabase, Data/Networking, Data/Sync | Supabase auth, REST push and pull, request building, pull coordinators | `SupabaseSyncService`, `SupabaseShowPullService`, `SyncRequestBuilder`, `ShowPullCoordinator` |
-| Features/* | One View and ViewModel per screen | `ShowListView`, `ShowListViewModel` |
+| DesignSystem | Adaptive light and dark tokens, shared components | `Palette`, `FloatingNavBar`, `FormSheet`, `TeamAvatar` |
+| Features/* | One View and ViewModel per screen | `ScheduleView`, `TeamListView`, `TourDetailView` |
 
 ### Design notes
 
-- **Dependency injection** is plain initializer injection. The composition root in `TourOpsApp.init` wires everything by hand.
-- **No coordinator or use-case layer.** Navigation is handled with `NavigationStack` inside the views. This is a choice for the current size of the project.
-- **Where the protocol boundary stops.** Repository protocols expose only fetch, create, update and delete. The `stage*` methods (mutate the context without saving) and the remote-apply methods exist only on the concrete `SwiftData*Repository` types, because the sync-tracking decorators and the reconcilers need to combine several changes under one save. The engine, scheduler, sync service, API client and auth provider sit behind protocols.
+- **Dependency injection** is plain initializer injection. The composition root in `TourOpsApp.init` wires everything by hand, and `AppShell` hosts the two tabs.
+- **Adaptive design system.** Colors are defined once as light and dark pairs and resolve from the system appearance. Screens never branch on the color scheme for color; only shadows versus borders differ.
+- **Derived presentation data.** The Schedule agenda, team overviews and tour timeline are pure functions over existing models, so they are unit-tested without UI or persistence. A team's tint is derived from its id, so nothing extra is stored.
+- **Where the protocol boundary stops.** Repository protocols expose only fetch, create, update and delete. The `stage*` methods (mutate the context without saving) and the remote-apply methods exist only on the concrete `SwiftData*Repository` types, because the sync-tracking decorators and the reconcilers combine several changes under one save. The engine, scheduler, sync service, API client and auth provider sit behind protocols.
 - **Concurrency.** The app target builds in Swift 5 language mode with default MainActor isolation and approachable concurrency enabled. Repositories, the engine, the scheduler and the reconcilers share the main `ModelContext`.
-- **View refresh.** Views reload through `.task(id:)` keyed on a `DataRefreshSignal` generation counter, which the app bumps after a pull succeeds.
+- **View refresh.** Views reload through `.task(id:)` keyed on a `DataRefreshSignal` generation counter, which the app bumps after a pull succeeds or a sheet is dismissed.
 
-## Synchronization design
+## Synchronization
 
 ### Write path: one save, two records
 
@@ -125,8 +159,6 @@ An operation records two version numbers. `operation.version` is the version the
 | update, then update | one update with the original base version and the latest payload |
 | update, then delete | the delete |
 
-Any other sequence falls through to "the later operation replaces the earlier one" and is not specifically tested.
-
 ### Failure handling
 
 | Outcome | Result |
@@ -137,7 +169,7 @@ Any other sequence falls through to "the later operation replaces the earlier on
 | Any other error, including 5xx | retry count + 1; `.pending` while the count is below the limit (3), otherwise `.failed` |
 | Cancellation | back to `.pending` |
 
-Only `.pending` operations are fetched for sending, so `.conflict` and `.failed` operations are not retried automatically. There is no backoff: a failed attempt is retried at the next trigger.
+Only `.pending` operations are fetched for sending, so `.conflict` and `.failed` operations are not retried automatically. A failed attempt is retried at the next trigger.
 
 ### Concurrency control against the server
 
@@ -148,13 +180,11 @@ PATCH  /rest/v1/shows?id=eq.<id>&version=eq.<base>
 DELETE /rest/v1/shows?id=eq.<id>&version=eq.<base>
 ```
 
-The request asks for `Prefer: return=representation`. If the filter matches no row, the response is an empty array and the client treats it as a conflict. Creates carry no filter.
-
-An empty result can mean a version mismatch, a row deleted elsewhere, or a row the user is not allowed to see. The client does not distinguish between them.
+The request asks for `Prefer: return=representation`. If the filter matches no row, the response is an empty array and the client treats it as a conflict. Creates carry no filter. An empty result can mean a version mismatch, a row deleted elsewhere, or a row the user is not allowed to see; the client does not distinguish between them.
 
 ### Idempotency of creates
 
-Entity IDs are generated on the client and used as primary keys. If a create is replayed, the duplicate is rejected by the server, and an HTTP 409 on a create is treated as success. Updates and deletes are not designed to be replayed safely.
+Entity IDs are generated on the client and used as primary keys. If a create is replayed, the duplicate is rejected by the server, and an HTTP 409 on a create is treated as success.
 
 ### Pull and reconciliation
 
@@ -175,21 +205,17 @@ Each entity type is pulled independently; a failure in one is logged and does no
 - `scheduleSync()` after every local mutation.
 - Push, then pull, when the user signs in and whenever the app becomes active.
 
-## Known limitations
+### Behavior worth knowing
 
-- **Conflicts and failures are parked, not resolved.** There is no UI for them, and they are not retried automatically.
-- **A failed local edit can be overwritten.** Because failed operations do not protect an entity during reconciliation, a newer remote version replaces a local edit whose operation has failed, with no audit trail.
-- **Replay safety.** Only creates are idempotent. A create that the server rejects with 409 for any reason, including other constraint violations, is treated as already applied.
-- **Pull is a full snapshot.** Each pull fetches whole tables without pagination and infers remote deletions from absence. Only an empty response is guarded against.
-- **No local cascade.** Deleting a team removes only the team; its tours and shows remain in the local store. Repository fetches are unscoped and filtered in the views.
-- **Errors are mostly silent in the sync path.** Persistence errors inside the engine are swallowed, and only the pull path logs.
-- **Offline launch with an expired session is untested.** The sign-in gate treats an expired session as signed out; its behavior without a network has not been verified.
-- **Backend artifacts are not included.** The SQL schema, row level security policies and any triggers are not part of this repository.
-- **Overlapping sync runs.** The sign-in and app-active triggers may start a push and pull at nearly the same time at launch; overlapping pulls are not guarded against. `SyncScheduler` coalesces concurrent `scheduleSync()` calls for push, but the pull path is not yet serialized with the same guarantee.
+- Conflicted and failed operations are kept for inspection and are not retried automatically.
+- Because failed operations do not protect an entity during reconciliation, a newer remote version replaces a local edit whose operation has failed.
+- Only creates are idempotent. A create that the server rejects with 409 for any reason is treated as already applied.
+- Each pull fetches whole tables and infers remote deletions from absence; only an empty response is guarded against.
+- Deleting a team removes only the team locally; its tours and shows are filtered out in the views by parent ID.
 
 ## Testing
 
-Unit tests use Swift Testing, with more than 170 test functions. They cover:
+Unit tests use Swift Testing and cover:
 
 - **SyncEngine:** success, retry, retry limit, conflict, cancellation, lost wake-up, reduction integration, entity ordering.
 - **SyncOperationReducer** and **SyncRetryPolicy**.
@@ -198,10 +224,11 @@ Unit tests use Swift Testing, with more than 170 test functions. They cover:
 - The Show and Team pull services, the Tour and Show pull coordinators, and the Team, Tour and Show reconcilers, including the full operation-status matrix.
 - SwiftData repositories and the sync-tracking repositories, against an in-memory `ModelContainer`.
 - **APIClient** through a `URLProtocol` stub, JSON date decoding, and the list ViewModels.
+- **Schedule derivations:** agenda grouping, week strip, next-up selection, default tour, team overview, tour timeline and load-state resolution.
 
 Network, auth and the sync service are mocked in the engine and service tests. Repository, tracking and reconciler tests use a real in-memory SwiftData store instead of mocking SwiftData.
 
-There is no CI configuration. Run the suite with **Cmd+U** in Xcode.
+Run the suite with **Cmd+U** in Xcode.
 
 ## Getting started
 
@@ -224,14 +251,15 @@ The schema is not included in this repository. The client expects three tables �
 
 - The client sets `user_id` from the signed-in session on create operations only.
 - Dates are ISO 8601; decoding accepts timestamps with or without fractional seconds.
-- On update, the client sends the post-update version in the payload and filters on the previous version. Whether the server also owns or increments `version` (for example with a trigger) is a backend concern outside this repository.
+- On update, the client sends the post-update version in the payload and filters on the previous version. Whether the server also owns or increments `version` (for example with a trigger) is a backend concern.
 - Access control depends entirely on the row level security policies you configure.
 
 ## Project structure
 
 ```
 TourOps/
-├── App/            Composition root (TourOpsApp), DataRefreshSignal
+├── App/            TourOpsApp (composition root), AppShell (tabs, floating nav, create flow), DataRefreshSignal
+├── DesignSystem/   Palette, typography, card surface, floating navigation, form components, team identity, state panels
 ├── Domain/
 │   ├── Authentication/   AuthState, SyncAuthProviding
 │   ├── Model/            Team, Tour, Show, ShowStatus, SyncOperation
@@ -247,27 +275,25 @@ TourOps/
 │   ├── Repositories/     SwiftData, sync-tracking and mock repositories, reconcilers
 │   ├── Supabase/         Client, auth, push and pull services
 │   └── Sync/             DefaultSyncService, pull coordinators
-└── Features/       Authentication, Teams, Tours, Show
+└── Features/       Authentication, Schedule, Teams, Tours, Show
 
-TourOpsTests/       Swift Testing unit tests (Network, Repositories, Sync, ViewModels)
-TourOpsUITests/     Xcode template only
+TourOpsTests/       Swift Testing unit tests (Network, Repositories, Sync, ViewModels, Features)
+docs/images/        Interface images used in this README
 ```
-
-`DefaultSyncService` is a generic REST sync service kept alongside `SupabaseSyncService`; the app uses the Supabase one. `ShowStatus` is defined in the domain layer but not yet used.
 
 ## Tech stack
 
 | Category | Technology |
 | --- | --- |
 | Language | Swift 5 language mode, default MainActor isolation |
-| UI | SwiftUI, NavigationStack |
+| UI | SwiftUI, NavigationStack, adaptive light and dark design system |
 | State | Observation (`@Observable`) |
 | Concurrency | async/await, structured and unstructured Task |
 | Local persistence | SwiftData |
 | Networking | URLSession through a small APIClient |
 | Backend | Supabase: PostgreSQL, Auth, PostgREST |
 | Dependencies | supabase-swift (authentication) |
-| Testing | Swift Testing; XCTest for the UI test template |
+| Testing | Swift Testing |
 
 ## License
 

@@ -381,6 +381,72 @@ struct ScheduleAgendaTests {
         #expect(!TourTimeline.rangeText(for: reversed).isEmpty)
     }
 
+    // MARK: Load state
+
+    @Test
+    func failedShowLoadIsNotPresentedAsAnEmptySchedule() {
+        // Teams loaded, shows failed and nothing is cached.
+        let state = ScheduleLoadState.resolve(
+            hasCompletedFirstLoad: true,
+            isLoading: false,
+            loadError: "offline",
+            hasShows: false,
+            hasTeams: true
+        )
+
+        #expect(state == .failed("offline"))
+    }
+
+    @Test
+    func failedRefreshKeepsCachedShowsVisible() {
+        let state = ScheduleLoadState.resolve(
+            hasCompletedFirstLoad: true,
+            isLoading: false,
+            loadError: "offline",
+            hasShows: true,
+            hasTeams: true
+        )
+
+        #expect(state == .stale("offline"))
+    }
+
+    @Test
+    func successfulLoadDistinguishesNoTeamsFromAnAgenda() {
+        func resolve(hasTeams: Bool) -> ScheduleLoadState {
+            ScheduleLoadState.resolve(
+                hasCompletedFirstLoad: true,
+                isLoading: false,
+                loadError: nil,
+                hasShows: false,
+                hasTeams: hasTeams
+            )
+        }
+
+        #expect(resolve(hasTeams: false) == .noTeams)
+        #expect(resolve(hasTeams: true) == .ready)
+    }
+
+    @Test
+    func loadingWinsUntilTheFirstLoadCompletes() {
+        let first = ScheduleLoadState.resolve(
+            hasCompletedFirstLoad: false,
+            isLoading: false,
+            loadError: nil,
+            hasShows: false,
+            hasTeams: false
+        )
+        let retry = ScheduleLoadState.resolve(
+            hasCompletedFirstLoad: true,
+            isLoading: true,
+            loadError: "offline",
+            hasShows: false,
+            hasTeams: true
+        )
+
+        #expect(first == .loading)
+        #expect(retry == .loading)
+    }
+
     // MARK: Monogram
 
     @Test

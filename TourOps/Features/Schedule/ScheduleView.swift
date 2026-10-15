@@ -26,6 +26,7 @@ struct ScheduleView: View {
     @State private var tours: [Tour] = []
     @State private var loadError: String?
     @State private var hasCompletedFirstLoad = false
+    @State private var retryCount = 0
 
     @State private var selectedDay = Calendar.current.startOfDay(for: Date())
     @State private var selectedTeamID: UUID?
@@ -97,14 +98,23 @@ struct ScheduleView: View {
             .sheet(isPresented: $showingDatePicker) {
                 datePickerSheet
             }
-            .task(id: refreshSignal.generation) {
+            .task(id: LoadTrigger(generation: refreshSignal.generation, retry: retryCount)) {
                 await load()
             }
         }
     }
 
+    /// A refresh from elsewhere in the app or a tap on Try Again. Both go
+    /// through the same `.task`, so a new load cancels the previous one.
+    private struct LoadTrigger: Equatable {
+        let generation: Int
+        let retry: Int
+    }
+
     private func load() async {
         await showModel.loadShows()
+
+        var referenceError: String?
 
         do {
             async let fetchedTeams = teamRepository.fetchTeams()
@@ -114,17 +124,20 @@ struct ScheduleView: View {
 
             teams = loadedTeams
             tours = loadedTours
-            loadError = showModel.loadErrorMessage
         } catch is CancellationError {
             // A superseded load is not a failure.
         } catch {
-            loadError = error.localizedDescription
+            referenceError = error.localizedDescription
         }
 
-        // A cancelled load was superseded; the replacement marks completion.
-        if !Task.isCancelled {
-            hasCompletedFirstLoad = true
+        // A cancelled load was superseded; the replacement reports the outcome.
+        guard !Task.isCancelled else {
+            return
         }
+
+        // A failed show load must surface even when teams and tours loaded.
+        loadError = showModel.loadErrorMessage ?? referenceError
+        hasCompletedFirstLoad = true
     }
 
     // MARK: - Header
@@ -191,17 +204,40 @@ struct ScheduleView: View {
         let daysWithShows = ScheduleAgenda.daysWithShows(in: entries, calendar: calendar)
         let today = calendar.startOfDay(for: Date())
 
-        return HStack(spacing: 0) {
-            ForEach(week, id: \.self) { day in
-                DayCell(
-                    day: day,
-                    isSelected: calendar.isDate(day, inSameDayAs: selectedDay),
-                    isToday: day == today,
-                    hasShows: daysWithShows.contains(day)
-                ) {
-                    selectedDay = day
+        let cells = ForEach(week, id: \.self) { day in
+            DayCell(
+                day: day,
+                isSelected: calendar.isDate(day, inSameDayAs: selectedDay),
+                isToday: day == today,
+                hasShows: daysWithShows.contains(day)
+            ) {
+                selectedDay = day
+            }
+            .id(day)
+        }
+
+        return Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                // Seven cells cannot share the width at accessibility sizes,
+                // so the week scrolls sideways instead of capping the text.
+                ScrollViewReader { proxy in
+                    ScrollView(.horizontal) {
+                        HStack(spacing: 8) {
+                            cells.frame(minWidth: 84)
+                        }
+                    }
+                    .scrollIndicators(.hidden)
+                    .onAppear {
+                        proxy.scrollTo(calendar.startOfDay(for: selectedDay), anchor: .center)
+                    }
+                    .onChange(of: selectedDay) { _, newValue in
+                        proxy.scrollTo(calendar.startOfDay(for: newValue), anchor: .center)
+                    }
                 }
-                .frame(maxWidth: .infinity)
+            } else {
+                HStack(spacing: 0) {
+                    cells.frame(maxWidth: .infinity)
+                }
             }
         }
         .gesture(
@@ -289,30 +325,50 @@ struct ScheduleView: View {
 
     @ViewBuilder
     private var content: some View {
-        if !hasCompletedFirstLoad {
+        switch loadState {
+        case .loading:
             LoadingPanel(message: "Loading schedule…")
-        } else if let loadError, showModel.shows.isEmpty, teams.isEmpty {
+
+        case .failed(let message):
             StatePanel(
                 symbol: "exclamationmark.triangle",
                 title: "Couldn’t load the schedule",
-                message: loadError,
+                message: message,
                 actionTitle: "Try Again",
-                isPrimaryAction: false
-            ) {
-                Task { await load() }
-            }
-        } else if teams.isEmpty {
+                isPrimaryAction: false,
+                action: retry
+            )
+
+        case .noTeams:
             StatePanel(
                 symbol: "calendar",
                 title: "Nothing scheduled yet",
                 message: "Add a team with the + button. Its tours and shows will appear here."
             )
-        } else {
-            agenda
+
+        case .stale:
+            agenda(showsNotice: true)
+
+        case .ready:
+            agenda(showsNotice: false)
         }
     }
 
-    private var agenda: some View {
+    private var loadState: ScheduleLoadState {
+        ScheduleLoadState.resolve(
+            hasCompletedFirstLoad: hasCompletedFirstLoad,
+            isLoading: showModel.isLoading,
+            loadError: loadError,
+            hasShows: !showModel.shows.isEmpty,
+            hasTeams: !teams.isEmpty
+        )
+    }
+
+    private func retry() {
+        retryCount += 1
+    }
+
+    private func agenda(showsNotice: Bool) -> some View {
         let allEntries = entries
         let sections = ScheduleAgenda.sections(
             entries: allEntries,
@@ -323,6 +379,10 @@ struct ScheduleView: View {
 
         return ScrollView {
             LazyVStack(alignment: .leading, spacing: 24) {
+                if showsNotice {
+                    StaleNotice(retry: retry)
+                }
+
                 ForEach(sections) { section in
                     daySection(
                         section,
@@ -392,6 +452,51 @@ struct ScheduleView: View {
     }
 }
 
+// MARK: - Stale notice
+
+/// Shown above the agenda when a refresh failed but earlier data is still on
+/// screen. It does not replace the agenda.
+private struct StaleNotice: View {
+
+    let retry: () -> Void
+
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    var body: some View {
+        let layout = dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
+            : AnyLayout(HStackLayout(alignment: .center, spacing: 12))
+
+        return layout {
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                Image(systemName: "exclamationmark.triangle")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Palette.orangeText)
+                    .accessibilityHidden(true)
+
+                Text("Couldn’t refresh. Showing the shows saved on this device.")
+                    .font(.subheadline)
+                    .foregroundStyle(Palette.primaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            if !dynamicTypeSize.isAccessibilitySize {
+                Spacer(minLength: 0)
+            }
+
+            Button("Try Again", action: retry)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(Palette.primaryText)
+                .frame(minHeight: 44)
+                .contentShape(Rectangle())
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 6)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .cardSurface()
+    }
+}
+
 // MARK: - Day cell
 
 private struct DayCell: View {
@@ -442,7 +547,6 @@ private struct DayCell: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
         .accessibilityLabel(
             day.formatted(.dateTime.weekday(.wide).day().month(.wide))
         )

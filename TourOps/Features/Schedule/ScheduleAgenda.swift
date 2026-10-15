@@ -158,6 +158,43 @@ enum ScheduleAgenda {
     }
 }
 
+// MARK: - Load state
+
+/// What the Schedule screen should show, given the outcome of its loads.
+/// Keeps a failed load distinct from a genuinely empty schedule.
+enum ScheduleLoadState: Equatable {
+    /// First load still running (or a retry with nothing cached).
+    case loading
+    /// The load failed and there is nothing usable to show.
+    case failed(String)
+    /// The load failed, but previously loaded shows are still displayed.
+    case stale(String)
+    /// Loaded fine, but there are no teams yet.
+    case noTeams
+    /// Loaded fine; show the agenda (which may legitimately have no shows).
+    case ready
+
+    static func resolve(
+        hasCompletedFirstLoad: Bool,
+        isLoading: Bool,
+        loadError: String?,
+        hasShows: Bool,
+        hasTeams: Bool
+    ) -> ScheduleLoadState {
+        if !hasCompletedFirstLoad || isLoading {
+            return .loading
+        }
+
+        if let loadError {
+            // Cached shows are only usable together with the teams they
+            // belong to; otherwise the agenda would be empty anyway.
+            return hasShows && hasTeams ? .stale(loadError) : .failed(loadError)
+        }
+
+        return hasTeams ? .ready : .noTeams
+    }
+}
+
 // MARK: - Teams
 
 enum TeamOverview {
