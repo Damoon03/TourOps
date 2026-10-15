@@ -11,29 +11,28 @@ struct TourFormContent: View {
 
     @Binding var draft: TourDraft
 
-    let title: String
-    let subtitle: String
+    /// When present, the form lets the user pick which team the tour belongs
+    /// to. Create Tour opened from a team passes none, because the team is
+    /// already fixed.
+    var teamChoices: [PickerOption] = []
+    var teamSelection: Binding<UUID>? = nil
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            ScreenHeader(
-                eyebrow: "TOUR PLANNING",
-                title: title,
-                subtitle: subtitle
-            )
-
-            VStack(spacing: 18) {
-                EditorField(
-                    title: "Tour Name",
-                    prompt: "e.g. World Tour 2027",
-                    symbol: "music.note.list",
-                    isRequired: true,
-                    text: $draft.name
+        VStack(alignment: .leading, spacing: 18) {
+            if let teamSelection, !teamChoices.isEmpty {
+                PickerField(
+                    title: "Team",
+                    options: teamChoices,
+                    selection: teamSelection
                 )
             }
-            .padding(18)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .cardSurface()
+
+            EditorField(
+                title: "Tour name",
+                prompt: "e.g. World Tour 2027",
+                isRequired: true,
+                text: $draft.name
+            )
 
             TourDateRangeEditor(
                 startDate: Binding(

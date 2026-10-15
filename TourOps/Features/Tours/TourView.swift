@@ -125,37 +125,22 @@ struct TourDateRangeEditor: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            VStack(alignment: .leading, spacing: 5) {
-                SectionHeading("SCHEDULE")
-
-                Text("Tour dates")
-                    .font(.headline)
-                    .foregroundStyle(Palette.primaryText)
-            }
-
-            DatePicker(
-                "Starts",
-                selection: $startDate,
-                displayedComponents: .date
+        HStack(alignment: .top, spacing: 12) {
+            DateField(
+                title: "Starts",
+                date: $startDate,
+                components: .date,
+                includesYear: true
             )
-            .tint(Palette.accent)
 
-            HairlineDivider()
-
-            DatePicker(
-                "Ends",
-                selection: $endDate,
-                in: earliestEndDate...,
-                displayedComponents: .date
+            DateField(
+                title: "Ends",
+                date: $endDate,
+                components: .date,
+                includesYear: true,
+                range: earliestEndDate...Date.distantFuture
             )
-            .tint(Palette.accent)
         }
-        .font(.subheadline)
-        .foregroundStyle(Palette.primaryText)
-        .padding(18)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .cardSurface()
         .onChange(of: startDate) { _, newStartDate in
             // Same clamping rule as `TourDraft.setStartDate`.
             endDate = TourDateRange.normalizedEnd(

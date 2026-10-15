@@ -14,6 +14,10 @@ struct CreateShowView: View {
     let viewModel: ShowListViewModel
     let tourID: UUID
 
+    /// Tours the user can choose from. Empty when the show is created from a
+    /// specific tour, in which case `tourID` is used as is.
+    let tourChoices: [PickerOption]
+
     @State private var draft = ShowDraft()
 
     /// Fixed for the lifetime of the form, so even if a second submission
@@ -21,37 +25,36 @@ struct CreateShowView: View {
     /// instead of storing two shows.
     @State private var showID = UUID()
 
+    @State private var selectedTourID: UUID
     @State private var gate = SubmissionGate()
     @State private var showingError = false
 
-    var body: some View {
-        NavigationStack {
-            ScreenScroll(topPadding: 24, spacing: 20) {
-                ShowFormContent(
-                    draft: $draft,
-                    title: "Add a show",
-                    subtitle: "Add a venue, city, and schedule for this tour."
-                )
-            }
-            .navigationTitle("New Show")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
-                        dismiss()
-                    }
-                    .disabled(gate.isRunning)
-                }
+    init(
+        viewModel: ShowListViewModel,
+        tourID: UUID,
+        tourChoices: [PickerOption] = []
+    ) {
+        self.viewModel = viewModel
+        self.tourID = tourID
+        self.tourChoices = tourChoices
 
-                ToolbarItem(placement: .confirmationAction) {
-                    SubmitButton(
-                        title: "Create",
-                        isEnabled: draft.isValid,
-                        isSubmitting: gate.isRunning,
-                        action: submit
-                    )
-                }
-            }
+        _selectedTourID = State(initialValue: tourID)
+    }
+
+    var body: some View {
+        FormSheet(
+            title: "New show",
+            saveTitle: "Save show",
+            canSave: draft.isValid,
+            isSaving: gate.isRunning,
+            onCancel: { dismiss() },
+            onSave: submit
+        ) {
+            ShowFormContent(
+                draft: $draft,
+                tourChoices: tourChoices,
+                tourSelection: $selectedTourID
+            )
         }
         .interactiveDismissDisabled(gate.isRunning)
         .alert(
@@ -73,7 +76,7 @@ struct CreateShowView: View {
         // Revalidate here, not only in the button's disabled state.
         guard
             !gate.isRunning,
-            let show = draft.newShow(id: showID, tourID: tourID)
+            let show = draft.newShow(id: showID, tourID: selectedTourID)
         else {
             return
         }
@@ -96,7 +99,15 @@ struct CreateShowView: View {
 }
 
 #if DEBUG
-#Preview("Empty") {
+#Preview("Empty, light") {
+    CreateShowView(
+        viewModel: ShowListViewModel(repository: PreviewShowRepository()),
+        tourID: PreviewData.tourID
+    )
+    .preferredColorScheme(.light)
+}
+
+#Preview("Empty, dark") {
     CreateShowView(
         viewModel: ShowListViewModel(repository: PreviewShowRepository()),
         tourID: PreviewData.tourID
@@ -109,7 +120,6 @@ struct CreateShowView: View {
         viewModel: ShowListViewModel(repository: PreviewShowRepository()),
         tourID: PreviewData.tourID
     )
-    .preferredColorScheme(.dark)
     .dynamicTypeSize(.accessibility3)
 }
 #endif

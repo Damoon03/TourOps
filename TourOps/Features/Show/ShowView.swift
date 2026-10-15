@@ -136,37 +136,6 @@ struct ShowView: View {
     }
 }
 
-// MARK: - Date and time editor
-
-struct ShowDateTimeEditor: View {
-
-    @Binding var date: Date
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            VStack(alignment: .leading, spacing: 5) {
-                SectionHeading("SCHEDULE")
-
-                Text("Date and time")
-                    .font(.headline)
-                    .foregroundStyle(Palette.primaryText)
-            }
-
-            DatePicker(
-                "Show date and time",
-                selection: $date,
-                displayedComponents: [.date, .hourAndMinute]
-            )
-            .datePickerStyle(.compact)
-            .tint(Palette.accent)
-            .foregroundStyle(Palette.primaryText)
-        }
-        .padding(18)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .cardSurface()
-    }
-}
-
 #if DEBUG
 #Preview("Upcoming, today, past") {
     ZStack {

@@ -29,33 +29,15 @@ struct EditTourView: View {
     }
 
     var body: some View {
-        NavigationStack {
-            ScreenScroll(topPadding: 24, spacing: 20) {
-                TourFormContent(
-                    draft: $draft,
-                    title: "Edit tour details",
-                    subtitle: "Update the tour name or schedule."
-                )
-            }
-            .navigationTitle("Edit Tour")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
-                        dismiss()
-                    }
-                    .disabled(gate.isRunning)
-                }
-
-                ToolbarItem(placement: .confirmationAction) {
-                    SubmitButton(
-                        title: "Save",
-                        isEnabled: draft.isValid(),
-                        isSubmitting: gate.isRunning,
-                        action: submit
-                    )
-                }
-            }
+        FormSheet(
+            title: "Edit tour",
+            saveTitle: "Save changes",
+            canSave: draft.isValid(),
+            isSaving: gate.isRunning,
+            onCancel: { dismiss() },
+            onSave: submit
+        ) {
+            TourFormContent(draft: $draft)
         }
         .interactiveDismissDisabled(gate.isRunning)
         .alert(
@@ -96,7 +78,17 @@ struct EditTourView: View {
 }
 
 #if DEBUG
-#Preview("Populated") {
+#Preview("Populated, light") {
+    EditTourView(
+        viewModel: TourListViewModel(
+            repository: PreviewTourRepository(tours: [PreviewData.upcomingTour])
+        ),
+        tour: PreviewData.upcomingTour
+    )
+    .preferredColorScheme(.light)
+}
+
+#Preview("Populated, dark") {
     EditTourView(
         viewModel: TourListViewModel(
             repository: PreviewTourRepository(tours: [PreviewData.upcomingTour])
@@ -113,7 +105,6 @@ struct EditTourView: View {
         ),
         tour: PreviewData.longTour
     )
-    .preferredColorScheme(.dark)
     .dynamicTypeSize(.accessibility2)
 }
 #endif
