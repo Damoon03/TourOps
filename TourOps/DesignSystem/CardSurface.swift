@@ -49,6 +49,37 @@ private struct CardSurfaceModifier: ViewModifier {
     }
 }
 
+// MARK: - Round icon button
+
+/// The round surface-colored label used for header actions such as "…".
+struct RoundIconLabel: View {
+
+    let systemName: String
+
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        Image(systemName: systemName)
+            .font(.system(size: 15, weight: .bold))
+            .foregroundStyle(Palette.primaryText)
+            .frame(width: 44, height: 44)
+            .background {
+                Circle()
+                    .fill(Palette.surface)
+                    .shadow(
+                        color: colorScheme == .dark ? .clear : Color.black.opacity(0.07),
+                        radius: 8,
+                        x: 0,
+                        y: 3
+                    )
+            }
+            .overlay {
+                Circle().strokeBorder(Palette.hairline, lineWidth: 0.7)
+            }
+            .contentShape(Circle())
+    }
+}
+
 // MARK: - Press feedback
 
 /// Subtle press feedback for tappable cards inside a scroll view.

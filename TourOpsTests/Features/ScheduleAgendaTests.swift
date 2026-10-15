@@ -28,7 +28,7 @@ struct ScheduleAgendaTests {
 
     private let createdAt = Date(timeIntervalSince1970: 1_700_000_000)
 
-    private func team(_ name: String = "Team") -> Team {
+    private func makeTeam(_ name: String = "Team") -> Team {
         Team(
             id: UUID(),
             name: name,
@@ -40,7 +40,7 @@ struct ScheduleAgendaTests {
         )
     }
 
-    private func tour(
+    private func makeTour(
         teamID: UUID,
         start: Double = -10,
         end: Double = 10
@@ -56,7 +56,7 @@ struct ScheduleAgendaTests {
         )
     }
 
-    private func show(tourID: UUID, at date: Date) -> Show {
+    private func makeShow(tourID: UUID, at date: Date) -> Show {
         Show(
             id: UUID(),
             tourID: tourID,
@@ -73,12 +73,12 @@ struct ScheduleAgendaTests {
 
     @Test
     func entriesAreSortedAndOrphansAreDropped() {
-        let team = team()
-        let tour = tour(teamID: team.id)
+        let team = makeTeam()
+        let tour = makeTour(teamID: team.id)
 
-        let late = show(tourID: tour.id, at: days(2))
-        let early = show(tourID: tour.id, at: days(1))
-        let orphan = show(tourID: UUID(), at: days(1))
+        let late = makeShow(tourID: tour.id, at: days(2))
+        let early = makeShow(tourID: tour.id, at: days(1))
+        let orphan = makeShow(tourID: UUID(), at: days(1))
 
         let entries = ScheduleAgenda.entries(
             shows: [late, orphan, early],
@@ -91,13 +91,13 @@ struct ScheduleAgendaTests {
 
     @Test
     func teamFilterKeepsOnlyThatTeam() {
-        let first = team("First")
-        let second = team("Second")
-        let firstTour = tour(teamID: first.id)
-        let secondTour = tour(teamID: second.id)
+        let first = makeTeam("First")
+        let second = makeTeam("Second")
+        let firstTour = makeTour(teamID: first.id)
+        let secondTour = makeTour(teamID: second.id)
 
-        let firstShow = show(tourID: firstTour.id, at: days(1))
-        let secondShow = show(tourID: secondTour.id, at: days(1))
+        let firstShow = makeShow(tourID: firstTour.id, at: days(1))
+        let secondShow = makeShow(tourID: secondTour.id, at: days(1))
 
         let entries = ScheduleAgenda.entries(
             shows: [firstShow, secondShow],
@@ -113,9 +113,9 @@ struct ScheduleAgendaTests {
 
     @Test
     func selectedDayIsAlwaysTheFirstSectionEvenWhenEmpty() {
-        let team = team()
-        let tour = tour(teamID: team.id)
-        let later = show(tourID: tour.id, at: days(3))
+        let team = makeTeam()
+        let tour = makeTour(teamID: team.id)
+        let later = makeShow(tourID: tour.id, at: days(3))
 
         let entries = ScheduleAgenda.entries(
             shows: [later],
@@ -137,12 +137,12 @@ struct ScheduleAgendaTests {
 
     @Test
     func earlierDaysAreExcludedAndSameDayShowsAreGrouped() {
-        let team = team()
-        let tour = tour(teamID: team.id)
+        let team = makeTeam()
+        let tour = makeTour(teamID: team.id)
 
-        let earlier = show(tourID: tour.id, at: days(-1))
-        let morning = show(tourID: tour.id, at: days(0, hours: -2))
-        let evening = show(tourID: tour.id, at: days(0, hours: 6))
+        let earlier = makeShow(tourID: tour.id, at: days(-1))
+        let morning = makeShow(tourID: tour.id, at: days(0, hours: -2))
+        let evening = makeShow(tourID: tour.id, at: days(0, hours: 6))
 
         let entries = ScheduleAgenda.entries(
             shows: [earlier, evening, morning],
@@ -162,14 +162,14 @@ struct ScheduleAgendaTests {
 
     @Test
     func daysWithShowsContainsEachDayOnce() {
-        let team = team()
-        let tour = tour(teamID: team.id)
+        let team = makeTeam()
+        let tour = makeTour(teamID: team.id)
 
         let entries = ScheduleAgenda.entries(
             shows: [
-                show(tourID: tour.id, at: days(1, hours: -3)),
-                show(tourID: tour.id, at: days(1, hours: 5)),
-                show(tourID: tour.id, at: days(2))
+                makeShow(tourID: tour.id, at: days(1, hours: -3)),
+                makeShow(tourID: tour.id, at: days(1, hours: 5)),
+                makeShow(tourID: tour.id, at: days(2))
             ],
             tours: [tour],
             teams: [team]
@@ -199,11 +199,11 @@ struct ScheduleAgendaTests {
 
     @Test
     func nextUpSkipsShowsThatAlreadyStarted() {
-        let team = team()
-        let tour = tour(teamID: team.id)
+        let team = makeTeam()
+        let tour = makeTour(teamID: team.id)
 
-        let started = show(tourID: tour.id, at: days(0, hours: -1))
-        let upcoming = show(tourID: tour.id, at: days(0, hours: 2))
+        let started = makeShow(tourID: tour.id, at: days(0, hours: -1))
+        let upcoming = makeShow(tourID: tour.id, at: days(0, hours: 2))
 
         let entries = ScheduleAgenda.entries(
             shows: [started, upcoming],
@@ -218,10 +218,10 @@ struct ScheduleAgendaTests {
 
     @Test
     func defaultTourPrefersTheTourInProgress() {
-        let team = team()
-        let future = tour(teamID: team.id, start: 20, end: 40)
-        let current = tour(teamID: team.id, start: -5, end: 5)
-        let past = tour(teamID: team.id, start: -60, end: -30)
+        let team = makeTeam()
+        let future = makeTour(teamID: team.id, start: 20, end: 40)
+        let current = makeTour(teamID: team.id, start: -5, end: 5)
+        let past = makeTour(teamID: team.id, start: -60, end: -30)
 
         let result = ScheduleAgenda.defaultTour(
             in: [past, future, current],
@@ -234,9 +234,9 @@ struct ScheduleAgendaTests {
 
     @Test
     func defaultTourFallsBackToMostRecentWhenAllArePast() {
-        let team = team()
-        let older = tour(teamID: team.id, start: -90, end: -60)
-        let newer = tour(teamID: team.id, start: -50, end: -30)
+        let team = makeTeam()
+        let older = makeTour(teamID: team.id, start: -90, end: -60)
+        let newer = makeTour(teamID: team.id, start: -50, end: -30)
 
         let result = ScheduleAgenda.defaultTour(
             in: [older, newer],
@@ -252,16 +252,16 @@ struct ScheduleAgendaTests {
 
     @Test
     func teamOverviewCountsAndFindsCurrentTour() {
-        let team = team()
-        let current = tour(teamID: team.id, start: -5, end: 5)
-        let future = tour(teamID: team.id, start: 20, end: 30)
-        let other = tour(teamID: UUID(), start: -5, end: 5)
+        let team = makeTeam()
+        let current = makeTour(teamID: team.id, start: -5, end: 5)
+        let future = makeTour(teamID: team.id, start: 20, end: 30)
+        let other = makeTour(teamID: UUID(), start: -5, end: 5)
 
         let shows = [
-            show(tourID: current.id, at: days(-1)),
-            show(tourID: current.id, at: days(1)),
-            show(tourID: future.id, at: days(21)),
-            show(tourID: other.id, at: days(1))
+            makeShow(tourID: current.id, at: days(-1)),
+            makeShow(tourID: current.id, at: days(1)),
+            makeShow(tourID: future.id, at: days(21)),
+            makeShow(tourID: other.id, at: days(1))
         ]
 
         let info = TeamOverview.info(
@@ -280,8 +280,8 @@ struct ScheduleAgendaTests {
 
     @Test
     func teamOverviewHasNoCurrentTourBetweenTours() {
-        let team = team()
-        let future = tour(teamID: team.id, start: 20, end: 30)
+        let team = makeTeam()
+        let future = makeTour(teamID: team.id, start: 20, end: 30)
 
         let info = TeamOverview.info(
             forTeamID: team.id,
@@ -299,15 +299,15 @@ struct ScheduleAgendaTests {
 
     @Test
     func timelineStatsSplitPlayedFromUpcoming() {
-        let team = team()
-        let tour = tour(teamID: team.id)
+        let team = makeTeam()
+        let tour = makeTour(teamID: team.id)
 
         let shows = [
-            show(tourID: tour.id, at: days(-2)),
-            show(tourID: tour.id, at: days(-1)),
-            show(tourID: tour.id, at: days(1)),
-            show(tourID: tour.id, at: days(3)),
-            show(tourID: UUID(), at: days(2))
+            makeShow(tourID: tour.id, at: days(-2)),
+            makeShow(tourID: tour.id, at: days(-1)),
+            makeShow(tourID: tour.id, at: days(1)),
+            makeShow(tourID: tour.id, at: days(3)),
+            makeShow(tourID: UUID(), at: days(2))
         ]
 
         let stats = TourTimeline.stats(tour: tour, shows: shows, now: now, calendar: calendar)
@@ -320,12 +320,12 @@ struct ScheduleAgendaTests {
 
     @Test
     func timelineMarksNextShowAndTodayInsideTheRange() {
-        let team = team()
-        let tour = tour(teamID: team.id, start: -10, end: 10)
+        let team = makeTeam()
+        let tour = makeTour(teamID: team.id, start: -10, end: 10)
 
-        let played = show(tourID: tour.id, at: days(-5))
-        let next = show(tourID: tour.id, at: days(2))
-        let later = show(tourID: tour.id, at: days(8))
+        let played = makeShow(tourID: tour.id, at: days(-5))
+        let next = makeShow(tourID: tour.id, at: days(2))
+        let later = makeShow(tourID: tour.id, at: days(8))
 
         let layout = TourTimeline.layout(
             tour: tour,
@@ -348,11 +348,11 @@ struct ScheduleAgendaTests {
 
     @Test
     func timelinePinsShowsOutsideTheRangeAndHidesToday() {
-        let team = team()
-        let tour = tour(teamID: team.id, start: 5, end: 10)
+        let team = makeTeam()
+        let tour = makeTour(teamID: team.id, start: 5, end: 10)
 
-        let before = show(tourID: tour.id, at: days(-30))
-        let after = show(tourID: tour.id, at: days(40))
+        let before = makeShow(tourID: tour.id, at: days(-30))
+        let after = makeShow(tourID: tour.id, at: days(40))
 
         let layout = TourTimeline.layout(
             tour: tour,
@@ -367,8 +367,8 @@ struct ScheduleAgendaTests {
 
     @Test
     func timelineSurvivesAReversedRangeAndNoShows() {
-        let team = team()
-        let reversed = tour(teamID: team.id, start: 5, end: -5)
+        let team = makeTeam()
+        let reversed = makeTour(teamID: team.id, start: 5, end: -5)
 
         let layout = TourTimeline.layout(
             tour: reversed,
