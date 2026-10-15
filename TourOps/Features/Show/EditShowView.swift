@@ -29,33 +29,15 @@ struct EditShowView: View {
     }
 
     var body: some View {
-        NavigationStack {
-            ScreenScroll(topPadding: 24, spacing: 20) {
-                ShowFormContent(
-                    draft: $draft,
-                    title: "Edit show details",
-                    subtitle: "Update the venue or adjust the schedule."
-                )
-            }
-            .navigationTitle("Edit Show")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
-                        dismiss()
-                    }
-                    .disabled(gate.isRunning)
-                }
-
-                ToolbarItem(placement: .confirmationAction) {
-                    SubmitButton(
-                        title: "Save",
-                        isEnabled: draft.isValid,
-                        isSubmitting: gate.isRunning,
-                        action: submit
-                    )
-                }
-            }
+        FormSheet(
+            title: "Edit show",
+            saveTitle: "Save changes",
+            canSave: draft.isValid,
+            isSaving: gate.isRunning,
+            onCancel: { dismiss() },
+            onSave: submit
+        ) {
+            ShowFormContent(draft: $draft)
         }
         .interactiveDismissDisabled(gate.isRunning)
         .alert(
@@ -99,7 +81,17 @@ struct EditShowView: View {
 }
 
 #if DEBUG
-#Preview("Populated") {
+#Preview("Populated, light") {
+    EditShowView(
+        viewModel: ShowListViewModel(
+            repository: PreviewShowRepository(shows: [PreviewData.upcomingShow])
+        ),
+        show: PreviewData.upcomingShow
+    )
+    .preferredColorScheme(.light)
+}
+
+#Preview("Populated, dark") {
     EditShowView(
         viewModel: ShowListViewModel(
             repository: PreviewShowRepository(shows: [PreviewData.upcomingShow])
@@ -116,7 +108,6 @@ struct EditShowView: View {
         ),
         show: PreviewData.longShow
     )
-    .preferredColorScheme(.dark)
     .dynamicTypeSize(.accessibility2)
 }
 #endif

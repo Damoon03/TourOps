@@ -28,34 +28,18 @@ struct CreateTeamView: View {
     }
 
     var body: some View {
-        NavigationStack {
-            ScreenScroll(topPadding: 24, spacing: 20) {
-                TeamFormContent(
-                    draft: $draft,
-                    isImageBusy: $isImageBusy,
-                    title: "Add an artist or band",
-                    subtitle: "Set up the identity you’ll use to organize tours and shows."
-                )
-            }
-            .navigationTitle("New Team")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
-                        dismiss()
-                    }
-                    .disabled(gate.isRunning)
-                }
-
-                ToolbarItem(placement: .confirmationAction) {
-                    SubmitButton(
-                        title: "Create",
-                        isEnabled: canSubmit,
-                        isSubmitting: gate.isRunning,
-                        action: submit
-                    )
-                }
-            }
+        FormSheet(
+            title: "New team",
+            saveTitle: "Save team",
+            canSave: canSubmit,
+            isSaving: gate.isRunning,
+            onCancel: { dismiss() },
+            onSave: submit
+        ) {
+            TeamFormContent(
+                draft: $draft,
+                isImageBusy: $isImageBusy
+            )
         }
         .interactiveDismissDisabled(gate.isRunning)
         .alert(
@@ -97,7 +81,14 @@ struct CreateTeamView: View {
 }
 
 #if DEBUG
-#Preview("Empty") {
+#Preview("Empty, light") {
+    CreateTeamView(
+        viewModel: TeamListViewModel(repository: PreviewTeamRepository())
+    )
+    .preferredColorScheme(.light)
+}
+
+#Preview("Empty, dark") {
     CreateTeamView(
         viewModel: TeamListViewModel(repository: PreviewTeamRepository())
     )
@@ -108,7 +99,6 @@ struct CreateTeamView: View {
     CreateTeamView(
         viewModel: TeamListViewModel(repository: PreviewTeamRepository())
     )
-    .preferredColorScheme(.dark)
     .dynamicTypeSize(.accessibility3)
 }
 #endif

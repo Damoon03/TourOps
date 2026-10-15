@@ -2,7 +2,8 @@
 //  Typography.swift
 //  TourOps
 //
-//  Branded type styles built on system text styles so they follow Dynamic Type.
+//  Branded type styles built on system text styles (SF Pro) so they follow
+//  Dynamic Type.
 //
 
 import SwiftUI
@@ -12,11 +13,14 @@ extension Font {
     /// Small uppercase label that sits above a title or section.
     static let eyebrow = Font.caption2.weight(.bold)
 
-    /// Large rounded title used for screen headers and hero cards.
-    static let heroTitle = Font.system(.title, design: .rounded, weight: .bold)
+    /// Large title used for the top of each tab screen.
+    static let screenTitle = Font.largeTitle.weight(.bold)
 
-    /// Rounded title used for list cards.
-    static let cardTitle = Font.system(.headline, design: .rounded, weight: .bold)
+    /// Title used for hero cards and detail headers.
+    static let heroTitle = Font.title.weight(.bold)
+
+    /// Title used for list cards.
+    static let cardTitle = Font.headline.weight(.bold)
 }
 
 extension View {

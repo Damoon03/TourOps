@@ -102,7 +102,7 @@ struct TeamImagePicker: View {
                     systemImage: "photo"
                 )
                 .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.white)
+                .foregroundStyle(Palette.onAccent)
                 .padding(.horizontal, 16)
                 .frame(minHeight: 44)
                 .background(Palette.accent, in: Capsule())

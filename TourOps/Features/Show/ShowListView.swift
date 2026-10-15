@@ -13,6 +13,7 @@ struct ShowListView: View {
     let tourID: UUID
 
     @Environment(DataRefreshSignal.self) private var refreshSignal
+    @Environment(\.floatingNavInset) private var navInset
 
     @State private var viewModel: ShowListViewModel
     @State private var showingCreateShow = false
@@ -133,7 +134,7 @@ struct ShowListView: View {
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 14)
-                .padding(.bottom, 32)
+                .padding(.bottom, 32 + navInset)
             }
             .scrollIndicators(.hidden)
         }

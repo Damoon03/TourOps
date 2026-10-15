@@ -73,7 +73,7 @@ struct LoadingPanel: View {
         VStack(spacing: 14) {
             ProgressView()
                 .controlSize(.large)
-                .tint(Palette.accent)
+                .tint(Palette.secondaryText)
 
             Text(message)
                 .font(.subheadline)
@@ -93,7 +93,7 @@ struct PillButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.subheadline.weight(.semibold))
-            .foregroundStyle(isProminent ? Color.white : Palette.primaryText)
+            .foregroundStyle(isProminent ? Palette.onAccent : Palette.primaryText)
             .padding(.horizontal, 26)
             .padding(.vertical, 12)
             .frame(minHeight: 48)
@@ -107,7 +107,19 @@ struct PillButtonStyle: ButtonStyle {
 }
 
 #if DEBUG
-#Preview("Empty") {
+#Preview("Empty, light") {
+    StatePanel(
+        symbol: "music.mic",
+        title: "No shows yet",
+        message: "Add a performance to start building this tour’s schedule.",
+        actionTitle: "Create Show",
+        action: {}
+    )
+    .background(Palette.canvas)
+    .preferredColorScheme(.light)
+}
+
+#Preview("Empty, dark") {
     StatePanel(
         symbol: "music.mic",
         title: "No shows yet",
@@ -129,13 +141,11 @@ struct PillButtonStyle: ButtonStyle {
         action: {}
     )
     .background(Palette.canvas)
-    .preferredColorScheme(.dark)
     .dynamicTypeSize(.accessibility3)
 }
 
 #Preview("Loading") {
     LoadingPanel(message: "Loading shows…")
         .background(Palette.canvas)
-        .preferredColorScheme(.dark)
 }
 #endif

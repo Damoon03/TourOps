@@ -17,6 +17,10 @@ struct ScreenScroll<Content: View>: View {
     private let spacing: CGFloat
     private let content: Content
 
+    /// Space reserved so the last row can scroll clear of the floating
+    /// navigation. Zero inside sheets.
+    @Environment(\.floatingNavInset) private var navInset
+
     init(
         topPadding: CGFloat = 16,
         spacing: CGFloat = 18,
@@ -37,7 +41,7 @@ struct ScreenScroll<Content: View>: View {
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, topPadding)
-                .padding(.bottom, 36)
+                .padding(.bottom, 36 + navInset)
             }
             .scrollIndicators(.hidden)
             .scrollDismissesKeyboard(.interactively)
@@ -258,28 +262,5 @@ struct DestructiveButton: View {
         .buttonStyle(.plain)
         .disabled(isDisabled)
         .accessibilityHint(hint)
-    }
-}
-
-// MARK: - Submit button
-
-/// Confirmation toolbar action that swaps to a spinner while a submission
-/// is running, so it cannot be tapped twice.
-struct SubmitButton: View {
-
-    let title: String
-    let isEnabled: Bool
-    let isSubmitting: Bool
-    let action: () -> Void
-
-    var body: some View {
-        if isSubmitting {
-            ProgressView()
-                .accessibilityLabel("Saving")
-        } else {
-            Button(title, action: action)
-                .fontWeight(.semibold)
-                .disabled(!isEnabled)
-        }
     }
 }

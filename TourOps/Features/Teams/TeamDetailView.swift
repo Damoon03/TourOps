@@ -234,7 +234,8 @@ struct TeamDetailView: View {
             TourListView(
                 repository: tourRepository,
                 teamID: team.id,
-                showRepository: showRepository
+                showRepository: showRepository,
+                team: team
             )
         } label: {
             NavigationCardLabel(

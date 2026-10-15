@@ -7,8 +7,8 @@
 
 import SwiftUI
 
-/// Presents its own navigation stack, like the Create and Edit screens for
-/// tours and shows, so callers just present it as a sheet.
+/// Draws its own bottom-sheet layout (see `FormSheet`), like the Create and
+/// Edit screens for tours and shows, so callers just present it as a sheet.
 struct EditTeamView: View {
 
     @Environment(\.dismiss) private var dismiss
@@ -36,34 +36,18 @@ struct EditTeamView: View {
     }
 
     var body: some View {
-        NavigationStack {
-            ScreenScroll(topPadding: 24, spacing: 20) {
-                TeamFormContent(
-                    draft: $draft,
-                    isImageBusy: $isImageBusy,
-                    title: "Edit artist details",
-                    subtitle: "Update the name, location or artwork."
-                )
-            }
-            .navigationTitle("Edit Team")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
-                        dismiss()
-                    }
-                    .disabled(gate.isRunning)
-                }
-
-                ToolbarItem(placement: .confirmationAction) {
-                    SubmitButton(
-                        title: "Save",
-                        isEnabled: canSubmit,
-                        isSubmitting: gate.isRunning,
-                        action: submit
-                    )
-                }
-            }
+        FormSheet(
+            title: "Edit team",
+            saveTitle: "Save changes",
+            canSave: canSubmit,
+            isSaving: gate.isRunning,
+            onCancel: { dismiss() },
+            onSave: submit
+        ) {
+            TeamFormContent(
+                draft: $draft,
+                isImageBusy: $isImageBusy
+            )
         }
         .interactiveDismissDisabled(gate.isRunning)
         .alert(
@@ -105,17 +89,17 @@ struct EditTeamView: View {
 }
 
 #if DEBUG
-#Preview("With image") {
+#Preview("With image, light") {
     EditTeamView(
         team: PreviewData.teamWithImage,
         viewModel: TeamListViewModel(
             repository: PreviewTeamRepository(teams: [PreviewData.teamWithImage])
         )
     )
-    .preferredColorScheme(.dark)
+    .preferredColorScheme(.light)
 }
 
-#Preview("No image") {
+#Preview("No image, dark") {
     EditTeamView(
         team: PreviewData.team,
         viewModel: TeamListViewModel(
@@ -132,7 +116,6 @@ struct EditTeamView: View {
             repository: PreviewTeamRepository(teams: [PreviewData.longTeam])
         )
     )
-    .preferredColorScheme(.dark)
     .dynamicTypeSize(.accessibility2)
 }
 #endif
