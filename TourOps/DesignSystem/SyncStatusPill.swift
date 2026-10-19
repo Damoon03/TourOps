@@ -35,15 +35,16 @@ struct SyncStatusPill: View {
                 Text(count == 1 ? "1 change not synced" : "\(count) changes not synced")
                     .font(.caption.weight(.medium))
                     .foregroundStyle(Palette.primaryText)
-                    .lineLimit(1)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             .padding(.horizontal, 12)
+            .padding(.vertical, 6)
             .frame(minHeight: 30)
             .background(.ultraThinMaterial, in: Capsule())
             .overlay {
                 Capsule().strokeBorder(Palette.hairline, lineWidth: 0.7)
             }
-            .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(
                 count == 1
