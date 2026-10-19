@@ -30,14 +30,14 @@ final class SyncEngine: SyncEngineProtocol {
         self.operationReducer = operationReducer
     }
 
-    func sync() async {
+    func sync() async -> SyncRunResult {
         guard !Task.isCancelled else {
-            return
+            return .cancelled
         }
 
         guard !isSyncing else {
             syncRequested = true
-            return
+            return .noWork
         }
 
         isSyncing = true
@@ -46,34 +46,52 @@ final class SyncEngine: SyncEngineProtocol {
             isSyncing = false
         }
 
+        var didFindWork = false
+        var encounteredFailure = false
+        var encounteredCancellation = false
+
         repeat {
             syncRequested = false
+
+            guard !Task.isCancelled else {
+                return .cancelled
+            }
 
             do {
                 let pendingOperations =
                     try await syncOperationRepository.fetchPendingOperations()
 
-                let groupedOperations =
-                    Dictionary(
-                        grouping: pendingOperations,
-                        by: \.entityID
-                    )
+                if !pendingOperations.isEmpty {
+                    didFindWork = true
+                }
+
+                let groupedOperations = Dictionary(
+                    grouping: pendingOperations,
+                    by: \.entityID
+                )
 
                 let orderedGroups = groupedOperations.values.sorted(
                     by: Self.compareEntityGroups
                 )
 
                 for entityOperations in orderedGroups {
-                    let reducedOperations =
-                        operationReducer.reduce(
-                            entityOperations
-                        )
+                    if Task.isCancelled {
+                        return .cancelled
+                    }
+
+                    let reducedOperations = operationReducer.reduce(
+                        entityOperations
+                    )
 
                     if reducedOperations.isEmpty {
                         for operation in entityOperations {
-                            try? await syncOperationRepository.delete(
-                                operation
-                            )
+                            do {
+                                try await syncOperationRepository.delete(
+                                    operation
+                                )
+                            } catch {
+                                encounteredFailure = true
+                            }
                         }
 
                         continue
@@ -85,28 +103,70 @@ final class SyncEngine: SyncEngineProtocol {
 
                     for operation in entityOperations
                     where !reducedIDs.contains(operation.id) {
-                        try await syncOperationRepository.delete(
-                            operation
-                        )
+                        do {
+                            try await syncOperationRepository.delete(
+                                operation
+                            )
+                        } catch {
+                            encounteredFailure = true
+                        }
                     }
 
                     for operation in reducedOperations {
-                        await process(
+                        if Task.isCancelled {
+                            return .cancelled
+                        }
+
+                        let result = await process(
                             operation,
                             relatedOperations: reducedOperations
                         )
+
+                        switch result {
+                        case .success:
+                            break
+
+                        case .noWork:
+                            break
+
+                        case .failure:
+                            encounteredFailure = true
+
+                        case .cancelled:
+                            encounteredCancellation = true
+                        }
+
+                        if encounteredCancellation {
+                            return .cancelled
+                        }
                     }
                 }
+            } catch is CancellationError {
+                return .cancelled
             } catch {
-                return
+                encounteredFailure = true
             }
         } while syncRequested && !Task.isCancelled
+
+        if Task.isCancelled {
+            return .cancelled
+        }
+
+        if encounteredCancellation {
+            return .cancelled
+        }
+
+        if encounteredFailure {
+            return .failure
+        }
+
+        return didFindWork ? .success : .noWork
     }
 
     private func process(
         _ operation: SyncOperation,
         relatedOperations: [SyncOperation]
-    ) async {
+    ) async -> SyncRunResult {
         do {
             var processingOperation = operation
             processingOperation.status = .processing
@@ -124,6 +184,8 @@ final class SyncEngine: SyncEngineProtocol {
                     relatedOperation
                 )
             }
+
+            return .success
         } catch is CancellationError {
             var pendingOperation = operation
             pendingOperation.status = .pending
@@ -131,11 +193,15 @@ final class SyncEngine: SyncEngineProtocol {
             try? await syncOperationRepository.update(
                 pendingOperation
             )
+
+            return .cancelled
         } catch {
             await handleFailure(
                 operation,
                 error: error
             )
+
+            return .failure
         }
     }
 

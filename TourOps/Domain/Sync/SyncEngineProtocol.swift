@@ -8,5 +8,5 @@
 import Foundation
 
 protocol SyncEngineProtocol {
-    func sync() async
+    func sync() async -> SyncRunResult
 }

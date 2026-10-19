@@ -11,7 +11,7 @@ protocol SyncSchedulerProtocol {
 
     func scheduleSync()
 
-    func syncNow() async
+    func syncNow() async -> SyncRunResult
 
     func cancelScheduledSync()
 }

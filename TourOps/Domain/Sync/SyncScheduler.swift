@@ -12,7 +12,7 @@ final class SyncScheduler: SyncSchedulerProtocol {
 
     private let syncEngine: SyncEngineProtocol
 
-    private var syncTask: Task<Void, Never>?
+    private var syncTask: Task<SyncRunResult, Never>?
     private var syncRequested = false
 
     init(
@@ -30,17 +30,20 @@ final class SyncScheduler: SyncSchedulerProtocol {
 
         startSyncTask()
     }
-    
-    func syncNow() async {
+
+    func syncNow() async -> SyncRunResult {
         if let syncTask {
-            await syncTask.value
-            return
+            return await syncTask.value
         }
 
         syncRequested = true
         startSyncTask()
 
-        await syncTask?.value
+        guard let syncTask else {
+            return .failure
+        }
+
+        return await syncTask.value
     }
 
     func cancelScheduledSync() {
@@ -54,15 +57,49 @@ final class SyncScheduler: SyncSchedulerProtocol {
             return
         }
 
-        syncTask = Task {
+        syncTask = Task { @MainActor [weak self] in
+            guard let self else {
+                return .cancelled
+            }
+
+            var finalResult: SyncRunResult = .noWork
+
             repeat {
                 syncRequested = false
 
-                await syncEngine.sync()
+                if Task.isCancelled {
+                    finalResult = .cancelled
+                    break
+                }
+
+                let result = await syncEngine.sync()
+
+                switch result {
+                case .failure:
+                    finalResult = .failure
+
+                case .cancelled:
+                    finalResult = .cancelled
+
+                case .success:
+                    if finalResult != .failure &&
+                        finalResult != .cancelled {
+                        finalResult = .success
+                    }
+
+                case .noWork:
+                    break
+                }
 
             } while syncRequested && !Task.isCancelled
 
+            if Task.isCancelled {
+                finalResult = .cancelled
+            }
+
             syncTask = nil
+            return finalResult
         }
     }
 }
+

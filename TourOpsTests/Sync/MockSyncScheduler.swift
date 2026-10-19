@@ -14,14 +14,16 @@ final class MockSyncScheduler: SyncSchedulerProtocol {
     var scheduleSyncCallCount = 0
     var syncNowCallCount = 0
 
+    var syncNowResult: SyncRunResult = .noWork
+
     func scheduleSync() {
         scheduleSyncCallCount += 1
     }
 
-    func syncNow() async {
+    func syncNow() async -> SyncRunResult {
         syncNowCallCount += 1
+        return syncNowResult
     }
 
-    func cancelScheduledSync() {
-    }
+    func cancelScheduledSync() {}
 }

@@ -175,7 +175,9 @@ private final class MockSyncEngine: SyncEngineProtocol {
     private(set) var syncCallCount = 0
     private(set) var isSyncing = false
 
-    private var syncContinuation: CheckedContinuation<Void, Never>?
+    private var syncContinuation:
+        CheckedContinuation<SyncRunResult, Never>?
+    
     private var syncStartedContinuation: CheckedContinuation<Void, Never>?
 
     private var syncCallCountContinuations: [
@@ -185,7 +187,7 @@ private final class MockSyncEngine: SyncEngineProtocol {
         )
     ] = []
 
-    func sync() async {
+    func sync() async -> SyncRunResult {
         syncCallCount += 1
         isSyncing = true
 
@@ -194,11 +196,13 @@ private final class MockSyncEngine: SyncEngineProtocol {
 
         resumeSyncCallCountWaiters()
 
-        await withCheckedContinuation { continuation in
+        let result = await withCheckedContinuation {
+            (continuation: CheckedContinuation<SyncRunResult, Never>) in
             syncContinuation = continuation
         }
 
         isSyncing = false
+        return result
     }
 
     func waitUntilSyncStarts() async {
@@ -226,8 +230,10 @@ private final class MockSyncEngine: SyncEngineProtocol {
         }
     }
 
-    func finishSync() {
-        syncContinuation?.resume()
+    func finishSync(
+        with result: SyncRunResult = .success
+    ) {
+        syncContinuation?.resume(returning: result)
         syncContinuation = nil
     }
 

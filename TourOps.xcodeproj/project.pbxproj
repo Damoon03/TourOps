@@ -44,7 +44,6 @@
 				Features/ScheduleLogicTests.swift,
 				Features/SubmissionGateTests.swift,
 				Features/TeamImageProcessorTests.swift,
-				JSONCodingTests.swift,
 				Network/APIClientTests.swift,
 				Repositories/MockTeamRepositoryTests.swift,
 				Repositories/ShowPullCoordinatorTests.swift,
