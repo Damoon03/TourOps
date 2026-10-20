@@ -2,17 +2,16 @@
 //  SyncStatusPill.swift
 //  TourOps
 //
-//  A compact pill that appears only while local changes are still waiting in
-//  the sync queue. It is hidden once everything is synced, so there is no
-//  permanent "Synced" badge.
+//  A compact pill that shows the sync state: offline (with or without queued
+//  changes), the number of changes still waiting to sync, or a brief "Synced"
+//  confirmation after a push completes. It is hidden otherwise.
 //
-//  This is a read-only view of the existing queue (`SyncOperationEntity`).
-//  It deliberately does not call `SyncOperationRepository.fetchPendingOperations()`,
-//  which also resets operations left in `.processing` and saves the context;
-//  a UI element must not change sync state.
-//
-//  The sync layer has no notion of being offline (no reachability
-//  monitoring), so no offline state is shown here.
+//  The unsynced count is a read-only view of the existing queue
+//  (`SyncOperationEntity`). It deliberately does not call
+//  `SyncOperationRepository.fetchPendingOperations()`, which also resets
+//  operations left in `.processing` and saves the context; a UI element must
+//  not change sync state. Connection state and the transient success state
+//  come from `SyncStatusModel`.
 //
 
 import SwiftUI
@@ -20,19 +19,22 @@ import SwiftData
 
 struct SyncStatusPill: View {
 
+    @Environment(SyncStatusModel.self) private var status
     @Query private var operations: [SyncOperationEntity]
 
     var body: some View {
-        let count = operations.count
+        let presentation = status.presentation(
+            unsyncedCount: operations.count
+        )
 
-        if count > 0 {
+        if presentation != .hidden {
             HStack(spacing: 7) {
                 Circle()
-                    .fill(Palette.orange)
+                    .fill(dotColor(for: presentation))
                     .frame(width: 7, height: 7)
                     .accessibilityHidden(true)
 
-                Text(count == 1 ? "1 change not synced" : "\(count) changes not synced")
+                Text(title(for: presentation))
                     .font(.caption.weight(.medium))
                     .foregroundStyle(Palette.primaryText)
                     .lineLimit(2)
@@ -46,11 +48,60 @@ struct SyncStatusPill: View {
                 Capsule().strokeBorder(Palette.hairline, lineWidth: 0.7)
             }
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel(
-                count == 1
-                    ? "1 change waiting to sync"
-                    : "\(count) changes waiting to sync"
-            )
+            .accessibilityLabel(accessibilityLabel(for: presentation))
         }
+    }
+
+    private func dotColor(for presentation: SyncStatusPresentation) -> Color {
+        switch presentation {
+        case .synced:
+            return Palette.statusActive
+        case .offline:
+            return Palette.secondaryText
+        case .unsynced, .hidden:
+            return Palette.orange
+        }
+    }
+
+    private func title(for presentation: SyncStatusPresentation) -> String {
+        switch presentation {
+        case .hidden:
+            return ""
+        case .synced:
+            return "Synced ✓"
+        case .offline(let count):
+            return count > 0
+                ? "Offline · \(Self.unsyncedText(count))"
+                : "Offline"
+        case .unsynced(let count):
+            return Self.unsyncedText(count)
+        }
+    }
+
+    private func accessibilityLabel(
+        for presentation: SyncStatusPresentation
+    ) -> String {
+        switch presentation {
+        case .hidden:
+            return ""
+        case .synced:
+            return "Changes synced"
+        case .offline(let count):
+            return count > 0
+                ? "Offline. \(Self.waitingText(count))"
+                : "Offline"
+        case .unsynced(let count):
+            return Self.waitingText(count)
+        }
+    }
+
+    private static func unsyncedText(_ count: Int) -> String {
+        count == 1 ? "1 change not synced" : "\(count) changes not synced"
+    }
+
+    private static func waitingText(_ count: Int) -> String {
+        count == 1
+            ? "1 change waiting to sync"
+            : "\(count) changes waiting to sync"
     }
 }
