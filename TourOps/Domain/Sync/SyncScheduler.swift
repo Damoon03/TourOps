@@ -11,17 +11,30 @@ import Foundation
 final class SyncScheduler: SyncSchedulerProtocol {
 
     private let syncEngine: SyncEngineProtocol
+    private let onChangeQueued: (() -> Void)?
+    private let onRunFinished: ((SyncRunResult) -> Void)?
 
     private var syncTask: Task<SyncRunResult, Never>?
     private var syncRequested = false
 
+    /// - Parameters:
+    ///   - onChangeQueued: Called each time `scheduleSync()` is requested,
+    ///     which happens when a local change has been queued.
+    ///   - onRunFinished: Called once per scheduler run with the aggregated
+    ///     result, for both `scheduleSync()` and `syncNow()`. Callers that
+    ///     join a run already in flight do not cause a second report.
     init(
-        syncEngine: SyncEngineProtocol
+        syncEngine: SyncEngineProtocol,
+        onChangeQueued: (() -> Void)? = nil,
+        onRunFinished: ((SyncRunResult) -> Void)? = nil
     ) {
         self.syncEngine = syncEngine
+        self.onChangeQueued = onChangeQueued
+        self.onRunFinished = onRunFinished
     }
 
     func scheduleSync() {
+        onChangeQueued?()
         syncRequested = true
 
         guard syncTask == nil else {
@@ -98,6 +111,7 @@ final class SyncScheduler: SyncSchedulerProtocol {
             }
 
             syncTask = nil
+            onRunFinished?(finalResult)
             return finalResult
         }
     }
