@@ -46,7 +46,7 @@ final class SyncEngine: SyncEngineProtocol {
             isSyncing = false
         }
 
-        var didFindWork = false
+        var didExecuteOperation = false
         var encounteredFailure = false
         var encounteredCancellation = false
 
@@ -60,10 +60,6 @@ final class SyncEngine: SyncEngineProtocol {
             do {
                 let pendingOperations =
                     try await syncOperationRepository.fetchPendingOperations()
-
-                if !pendingOperations.isEmpty {
-                    didFindWork = true
-                }
 
                 let groupedOperations = Dictionary(
                     grouping: pendingOperations,
@@ -124,7 +120,7 @@ final class SyncEngine: SyncEngineProtocol {
 
                         switch result {
                         case .success:
-                            break
+                            didExecuteOperation = true
 
                         case .noWork:
                             break
@@ -160,7 +156,7 @@ final class SyncEngine: SyncEngineProtocol {
             return .failure
         }
 
-        return didFindWork ? .success : .noWork
+        return didExecuteOperation ? .success : .noWork
     }
 
     private func process(

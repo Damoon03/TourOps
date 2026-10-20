@@ -8,7 +8,9 @@
 import Foundation
 
 enum SyncRunResult: Equatable {
-    /// All operations in this sync run completed successfully.
+    /// At least one operation was actually pushed and no operation failed.
+    /// Operations that collapse into no-ops are cleaned up locally and do not
+    /// count as a push.
     case success
 
     /// There were no operations to synchronize.

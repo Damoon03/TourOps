@@ -740,6 +740,169 @@ struct SyncEngineTests {
         )
     }
 
+    // MARK: - Run Results
+
+    @Test
+    func syncReturnsNoWorkWhenQueueIsEmpty() async throws {
+        let repository = MockSyncOperationRepository()
+        let service = MockSyncService()
+
+        let engine = makeEngine(
+            repository: repository,
+            service: service
+        )
+
+        let result = await engine.sync()
+
+        #expect(result == .noWork)
+        #expect(service.executedOperations.isEmpty)
+    }
+
+    @Test
+    func syncReturnsSuccessAfterOperationIsPushed() async throws {
+        let repository = MockSyncOperationRepository(
+            operations: [makeOperation()]
+        )
+        let service = MockSyncService()
+
+        let engine = makeEngine(
+            repository: repository,
+            service: service
+        )
+
+        let result = await engine.sync()
+
+        #expect(result == .success)
+        #expect(service.executedOperations.count == 1)
+    }
+
+    @Test
+    func syncReturnsFailureWhenExecutionFails() async throws {
+        let repository = MockSyncOperationRepository(
+            operations: [makeOperation()]
+        )
+        let service = MockSyncService()
+        service.error = TestError.executionFailed
+
+        let engine = makeEngine(
+            repository: repository,
+            service: service
+        )
+
+        let result = await engine.sync()
+
+        #expect(result == .failure)
+    }
+
+    @Test
+    func syncReturnsCancelledWhenExecutionIsCancelled() async throws {
+        let repository = MockSyncOperationRepository(
+            operations: [makeOperation()]
+        )
+        let service = MockSyncService()
+        service.error = CancellationError()
+
+        let engine = makeEngine(
+            repository: repository,
+            service: service
+        )
+
+        let result = await engine.sync()
+
+        #expect(result == .cancelled)
+    }
+
+    @Test
+    func syncReturnsCancelledWhenTaskIsAlreadyCancelled() async throws {
+        let repository = MockSyncOperationRepository(
+            operations: [makeOperation()]
+        )
+        let service = MockSyncService()
+
+        let engine = makeEngine(
+            repository: repository,
+            service: service
+        )
+
+        let task = Task {
+            await engine.sync()
+        }
+
+        task.cancel()
+
+        let result = await task.value
+
+        #expect(result == .cancelled)
+    }
+
+    @Test
+    func syncReturnsNoWorkWhenQueuedOperationsCollapseToNoOp() async throws {
+        let entityID = UUID()
+
+        let create = SyncOperation(
+            id: UUID(),
+            entityID: entityID,
+            entityType: .show,
+            operationType: .create,
+            payload: nil,
+            version: 1,
+            createdAt: Date(timeIntervalSince1970: 100),
+            status: .pending,
+            retryCount: 0
+        )
+
+        let delete = SyncOperation(
+            id: UUID(),
+            entityID: entityID,
+            entityType: .show,
+            operationType: .delete,
+            payload: nil,
+            version: 1,
+            createdAt: Date(timeIntervalSince1970: 200),
+            status: .pending,
+            retryCount: 0
+        )
+
+        let repository = MockSyncOperationRepository(
+            operations: [create, delete]
+        )
+        let service = MockSyncService()
+
+        let engine = makeEngine(
+            repository: repository,
+            service: service
+        )
+
+        let result = await engine.sync()
+
+        #expect(result == .noWork)
+        #expect(service.executedOperations.isEmpty)
+        #expect(repository.operations.isEmpty)
+    }
+
+    @Test
+    func syncReturnsFailureWhenOneOfSeveralOperationsFails() async throws {
+        let repository = MockSyncOperationRepository(
+            operations: [
+                makeOperation(entityType: .team),
+                makeOperation(entityType: .show)
+            ]
+        )
+        let service = MockSyncService()
+        service.errorOnCall = 2
+        service.error = TestError.executionFailed
+
+        let engine = makeEngine(
+            repository: repository,
+            service: service
+        )
+
+        let result = await engine.sync()
+
+        #expect(service.executedOperations.count == 2)
+        #expect(result == .failure)
+    }
+
     // MARK: - Helpers
 
     private func makeEngine(
@@ -876,6 +1039,9 @@ private final class MockSyncService:
     var executedOperations: [SyncOperation] = []
     var error: Error?
 
+    /// When set, `error` is thrown only on this (1-based) execution.
+    var errorOnCall: Int?
+
     var shouldPauseFirstExecution = false
 
     private var firstExecutionContinuation:
@@ -918,7 +1084,9 @@ private final class MockSyncService:
             }
         }
 
-        if let error {
+        if let error,
+           errorOnCall == nil ||
+            errorOnCall == executedOperations.count {
             throw error
         }
     }
