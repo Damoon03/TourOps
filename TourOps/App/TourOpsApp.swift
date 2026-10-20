@@ -29,10 +29,17 @@ struct TourOpsApp: App {
     private let authSessionController: AuthSessionController
     private let showPullCoordinator: ShowPullCoordinator
     private let refreshSignal: DataRefreshSignal
+    private let syncStatus: SyncStatusModel
 
     init() {
 
         self.refreshSignal = DataRefreshSignal()
+
+        let syncStatus = SyncStatusModel(
+            monitor: NWPathConnectivityMonitor()
+        )
+
+        self.syncStatus = syncStatus
 
         do {
 
@@ -80,7 +87,13 @@ struct TourOpsApp: App {
             )
 
             let syncScheduler = SyncScheduler(
-                syncEngine: syncEngine
+                syncEngine: syncEngine,
+                onChangeQueued: {
+                    syncStatus.changeQueued()
+                },
+                onRunFinished: { result in
+                    syncStatus.recordRunResult(result)
+                }
             )
 
             self.syncScheduler = syncScheduler
@@ -207,10 +220,14 @@ struct TourOpsApp: App {
                 }
             }
             .environment(refreshSignal)
+            .environment(syncStatus)
             // The app follows the system Light / Dark setting.
             .tint(Palette.accent)
             .task {
                 await authSessionController.start()
+            }
+            .task {
+                await syncStatus.observeConnectivity()
             }
             .onChange(of: authSessionController.state) { _, newState in
 

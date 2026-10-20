@@ -149,7 +149,7 @@ struct AppShell: View {
                 }
             }
             .overlay(alignment: .topLeading) {
-                // Appears only while changes are waiting to sync.
+                // Shows offline, unsynced-count or brief synced state.
                 SyncStatusPill()
                     .padding(.leading, 6)
                     .alignmentGuide(.top) { dimensions in
