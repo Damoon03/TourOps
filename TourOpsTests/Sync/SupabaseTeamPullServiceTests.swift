@@ -83,7 +83,7 @@ struct SupabaseTeamPullServiceTests {
 
         #expect(
             apiClient.lastRequest?.url?.absoluteString
-            == "https://example.supabase.co/rest/v1/teams"
+            == "https://example.supabase.co/rest/v1/teams?order=id.asc"
         )
 
         #expect(
@@ -110,11 +110,32 @@ private final class MockAPIClient: APIClientProtocol {
         _ request: URLRequest,
         responseType: Response.Type
     ) async throws -> Response {
+        try await sendWithMetadata(request, responseType: responseType).body
+    }
 
+    func sendWithMetadata<Response: Decodable>(
+        _ request: URLRequest,
+        responseType: Response.Type
+    ) async throws -> APIClientResponse<Response> {
         sendCallCount += 1
         lastRequest = request
 
-        return response as! Response
+        let start = Int(
+            request.value(forHTTPHeaderField: "Range")?
+                .split(separator: "-").first ?? "0"
+        ) ?? 0
+        let contentRange: String
+        if response.isEmpty {
+            contentRange = "*/0"
+        } else {
+            contentRange = "\(start)-\(start + response.count - 1)/\(response.count)"
+        }
+
+        return APIClientResponse(
+            body: response as! Response,
+            statusCode: 200,
+            headers: ["Content-Range": contentRange]
+        )
     }
 }
 
