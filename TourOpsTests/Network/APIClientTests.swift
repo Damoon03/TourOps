@@ -34,6 +34,22 @@ struct APIClientTests {
     }
 
     @Test
+    func sendWithMetadataPreservesResponseHeaders() async throws {
+        let client = APIClient(session: makeMockSession())
+        let request = URLRequest(
+            url: URL(string: "https://example.com/teams?status=200")!
+        )
+
+        let response = try await client.sendWithMetadata(
+            request,
+            responseType: TestResponse.self
+        )
+
+        #expect(response.body.name == "Northbound")
+        #expect(response.value(forHTTPHeaderField: "Content-Range") == "0-0/1")
+    }
+
+    @Test
     func sendThrowsForNonSuccessfulResponse() async {
         let session = makeMockSession()
 
@@ -193,7 +209,7 @@ private final class MockURLProtocol: URLProtocol {
             url: url,
             statusCode: statusCode,
             httpVersion: nil,
-            headerFields: nil
+            headerFields: ["Content-Range": "0-0/1"]
         )!
 
         client?.urlProtocol(

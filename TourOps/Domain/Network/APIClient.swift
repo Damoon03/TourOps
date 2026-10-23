@@ -18,6 +18,17 @@ final class APIClient: APIClientProtocol {
         _ request: URLRequest,
         responseType: Response.Type
     ) async throws -> Response {
+        let response: APIClientResponse<Response> = try await sendWithMetadata(
+            request,
+            responseType: responseType
+        )
+        return response.body
+    }
+
+    func sendWithMetadata<Response: Decodable>(
+        _ request: URLRequest,
+        responseType: Response.Type
+    ) async throws -> APIClientResponse<Response> {
         let data: Data
         let response: URLResponse
 
@@ -38,9 +49,22 @@ final class APIClient: APIClientProtocol {
         }
 
         do {
-            return try JSONCoding.decoder.decode(
+            let body = try JSONCoding.decoder.decode(
                 Response.self,
                 from: data
+            )
+
+            var headers: [String: String] = [:]
+            for (key, value) in httpResponse.allHeaderFields {
+                if let key = key as? String {
+                    headers[key] = String(describing: value)
+                }
+            }
+
+            return APIClientResponse(
+                body: body,
+                statusCode: httpResponse.statusCode,
+                headers: headers
             )
         } catch {
             throw APIClientError.decodingError(error)
