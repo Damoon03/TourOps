@@ -10,6 +10,26 @@ import Foundation
 enum SupabasePagedFetcher {
     static let defaultPageSize = 500
 
+    /// Fetches every row of `table` and returns them in ascending `id` order.
+    ///
+    /// Pages are requested with keyset pagination: every page after the first
+    /// adds `id=gt.<last id of the previous page>`, so a row that existed for
+    /// the whole fetch cannot be skipped by an insert or delete elsewhere in
+    /// the table. The `Range` of every page is relative to that cursor
+    /// (`0-(pageSize - 1)`), and `Prefer: count=exact` makes the server report
+    /// in `Content-Range` how many rows remain after the cursor.
+    ///
+    /// The result is only returned when the whole collection has been
+    /// verified: every page must carry a consistent `Content-Range`, a body
+    /// that matches it, a remaining count that shrinks by exactly the rows
+    /// received, and ids that strictly ascend across all pages (which also
+    /// rejects duplicates). Anything else throws, so a caller can treat a
+    /// returned array as complete.
+    ///
+    /// This is not snapshot isolation. Separate requests can still observe
+    /// different database states. Rows that existed for the whole fetch are
+    /// always returned; rows inserted or deleted while it runs may or may not
+    /// be, and changes after the cursor are rejected as a changed total.
     static func fetchAll<Row: Decodable>(
         table: String,
         baseURL: URL,
@@ -17,44 +37,33 @@ enum SupabasePagedFetcher {
         accessToken: String,
         apiClient: APIClientProtocol,
         rowType: Row.Type,
+        id: KeyPath<Row, UUID>,
         pageSize: Int = defaultPageSize
     ) async throws -> [Row] {
         guard pageSize > 0 else {
             throw SupabasePaginationError.invalidPageSize
         }
 
-        guard
-            let endpoint = URL(string: "/rest/v1/\(table)", relativeTo: baseURL),
-            var components = URLComponents(
-                url: endpoint,
-                resolvingAgainstBaseURL: true
-            )
-        else {
-            throw SupabasePaginationError.invalidEndpoint
-        }
-
-        // UUID primary keys provide a unique, stable ordering between range requests.
-        components.queryItems = [
-            URLQueryItem(name: "order", value: "id.asc")
-        ]
-
-        guard let url = components.url else {
-            throw SupabasePaginationError.invalidEndpoint
-        }
-
         var allRows: [Row] = []
-        var offset = 0
-        var expectedTotal: Int?
+        var cursor: UUID?
+        var expectedRemaining: Int?
 
         while true {
-            let requestedEnd = offset + pageSize - 1
+            let url = try pageURL(
+                table: table,
+                baseURL: baseURL,
+                after: cursor
+            )
+
             var request = URLRequest(url: url)
             request.httpMethod = HTTPMethod.GET.rawValue
+            // A Pull must never be answered from a local URL cache.
+            request.cachePolicy = .reloadIgnoringLocalCacheData
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
             request.setValue(publishableKey, forHTTPHeaderField: "apikey")
             request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
             request.setValue("items", forHTTPHeaderField: "Range-Unit")
-            request.setValue("\(offset)-\(requestedEnd)", forHTTPHeaderField: "Range")
+            request.setValue("0-\(pageSize - 1)", forHTTPHeaderField: "Range")
             request.setValue("count=exact", forHTTPHeaderField: "Prefer")
 
             let response: APIClientResponse<[Row]> = try await apiClient.sendWithMetadata(
@@ -70,8 +79,17 @@ enum SupabasePagedFetcher {
 
             let remoteRange = try parseContentRange(contentRange)
 
+            // After the first page the total is the number of rows left
+            // after the cursor, which the previous page already told us.
+            if let expectedRemaining, expectedRemaining != remoteRange.total {
+                throw SupabasePaginationError.totalChanged(
+                    expected: expectedRemaining,
+                    actual: remoteRange.total
+                )
+            }
+
             if remoteRange.total == 0 {
-                guard offset == 0, response.body.isEmpty else {
+                guard cursor == nil, response.body.isEmpty else {
                     throw SupabasePaginationError.invalidContentRange(contentRange)
                 }
                 return []
@@ -80,39 +98,92 @@ enum SupabasePagedFetcher {
             guard
                 let start = remoteRange.start,
                 let end = remoteRange.end,
-                start == offset,
+                start == 0,
                 end >= start,
-                end <= requestedEnd,
+                end <= pageSize - 1,
                 end < remoteRange.total
             else {
                 throw SupabasePaginationError.invalidContentRange(contentRange)
             }
 
-            let expectedPageCount = end - start + 1
-            guard response.body.count == expectedPageCount else {
+            let pageCount = end - start + 1
+            guard response.body.count == pageCount else {
                 throw SupabasePaginationError.responseCountMismatch(
-                    expected: expectedPageCount,
+                    expected: pageCount,
                     actual: response.body.count
                 )
             }
 
-            if let expectedTotal, expectedTotal != remoteRange.total {
-                throw SupabasePaginationError.totalChanged(
-                    expected: expectedTotal,
-                    actual: remoteRange.total
-                )
-            }
-            expectedTotal = remoteRange.total
+            var previousID = cursor
+            for row in response.body {
+                let rowID = row[keyPath: id]
 
-            guard !response.body.isEmpty else {
-                throw SupabasePaginationError.emptyPage
+                if let previousID, !isAscending(previousID, rowID) {
+                    throw SupabasePaginationError.nonAscendingIDs
+                }
+
+                previousID = rowID
             }
 
             allRows.append(contentsOf: response.body)
-            offset = end + 1
 
-            if offset == remoteRange.total {
+            let remainingAfterPage = remoteRange.total - pageCount
+
+            if remainingAfterPage == 0 {
                 return allRows
+            }
+
+            cursor = previousID
+            expectedRemaining = remainingAfterPage
+        }
+    }
+
+    private static func pageURL(
+        table: String,
+        baseURL: URL,
+        after cursor: UUID?
+    ) throws -> URL {
+        guard
+            let endpoint = URL(string: "/rest/v1/\(table)", relativeTo: baseURL),
+            var components = URLComponents(
+                url: endpoint,
+                resolvingAgainstBaseURL: true
+            )
+        else {
+            throw SupabasePaginationError.invalidEndpoint
+        }
+
+        // UUID primary keys provide a unique, stable ordering between requests.
+        var queryItems = [
+            URLQueryItem(name: "order", value: "id.asc")
+        ]
+
+        if let cursor {
+            queryItems.append(
+                URLQueryItem(
+                    name: "id",
+                    value: "gt.\(cursor.uuidString.lowercased())"
+                )
+            )
+        }
+
+        components.queryItems = queryItems
+
+        guard let url = components.url else {
+            throw SupabasePaginationError.invalidEndpoint
+        }
+
+        return url
+    }
+
+    /// PostgreSQL orders `uuid` values by comparing their bytes.
+    private static func isAscending(
+        _ lhs: UUID,
+        _ rhs: UUID
+    ) -> Bool {
+        withUnsafeBytes(of: lhs.uuid) { lhsBytes in
+            withUnsafeBytes(of: rhs.uuid) { rhsBytes in
+                lhsBytes.lexicographicallyPrecedes(rhsBytes)
             }
         }
     }
@@ -166,12 +237,12 @@ private struct ParsedContentRange {
     let total: Int
 }
 
-enum SupabasePaginationError: Error {
+enum SupabasePaginationError: Error, Equatable {
     case invalidEndpoint
     case invalidPageSize
     case missingContentRange
     case invalidContentRange(String)
     case responseCountMismatch(expected: Int, actual: Int)
     case totalChanged(expected: Int, actual: Int)
-    case emptyPage
+    case nonAscendingIDs
 }
