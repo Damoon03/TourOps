@@ -30,7 +30,8 @@ final class SupabaseTourPullService: TourPullServiceProtocol {
             publishableKey: TourOpsSupabaseClient.shared.publishableKey,
             accessToken: accessToken,
             apiClient: apiClient,
-            rowType: TourDTO.self
+            rowType: TourDTO.self,
+            id: \.id
         )
 
         return dtos.map(TourMapper.toDomain)

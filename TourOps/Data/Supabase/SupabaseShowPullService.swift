@@ -30,7 +30,8 @@ final class SupabaseShowPullService: ShowPullServiceProtocol {
             publishableKey: TourOpsSupabaseClient.shared.publishableKey,
             accessToken: accessToken,
             apiClient: apiClient,
-            rowType: ShowDTO.self
+            rowType: ShowDTO.self,
+            id: \.id
         )
 
         return dtos.map(ShowMapper.toDomain)

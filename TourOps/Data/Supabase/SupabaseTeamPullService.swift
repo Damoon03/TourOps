@@ -30,7 +30,8 @@ final class SupabaseTeamPullService: TeamPullServiceProtocol {
             publishableKey: TourOpsSupabaseClient.shared.publishableKey,
             accessToken: accessToken,
             apiClient: apiClient,
-            rowType: TeamDTO.self
+            rowType: TeamDTO.self,
+            id: \.id
         )
 
         return dtos.map(TeamMapper.toDomain)
