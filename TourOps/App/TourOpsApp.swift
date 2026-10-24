@@ -249,9 +249,15 @@ struct TourOpsApp: App {
         .modelContainer(modelContainer)
     }
 
+    /// Runs a full Push, then Pull cycle through the scheduler so that no
+    /// other cycle or scheduled Push can interleave with the Pull.
     private func runPushAndPull() async {
-        await syncScheduler.syncNow()
+        await syncScheduler.runSyncCycle {
+            await pullRemoteChanges()
+        }
+    }
 
+    private func pullRemoteChanges() async {
         var didAnyPullSucceed = false
 
         do {
