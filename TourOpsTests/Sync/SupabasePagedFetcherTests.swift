@@ -140,6 +140,204 @@ struct SupabasePagedFetcherTests {
 
         #expect(client.requests.isEmpty)
     }
+
+    // MARK: - Completeness
+
+    @Test
+    func exactPageSizeMultipleMakesNoExtraRequest() async throws {
+        let client = MockPagedAPIClient(steps: [
+            .page(MockPage(rows(1...2), contentRange: "0-1/4")),
+            .page(MockPage(rows(3...4), contentRange: "0-1/2", statusCode: 200))
+        ])
+
+        let result = try await fetchRows(using: client)
+
+        #expect(result == rows(1...4))
+        #expect(client.requests.count == 2)
+    }
+
+    @Test
+    func singlePageSmallerThanPageSizeIsComplete() async throws {
+        let client = MockPagedAPIClient(steps: [
+            .page(MockPage(rows(1...1), contentRange: "0-0/1", statusCode: 200))
+        ])
+
+        let result = try await fetchRows(using: client)
+
+        #expect(result == rows(1...1))
+        #expect(client.requests.count == 1)
+    }
+
+    @Test
+    func emptyRangeWithRowsInTheBodyFailsClosed() async {
+        let client = MockPagedAPIClient(steps: [
+            .page(MockPage(rows(1...1), contentRange: "*/0", statusCode: 200))
+        ])
+
+        await expectFailure(.invalidContentRange("*/0"), using: client)
+    }
+
+    @Test
+    func zeroTotalAfterTheFirstPageFailsClosed() async {
+        let client = MockPagedAPIClient(steps: [
+            .page(MockPage(rows(1...2), contentRange: "0-1/4")),
+            .page(MockPage([], contentRange: "*/0", statusCode: 200))
+        ])
+
+        await expectFailure(
+            .totalChanged(expected: 2, actual: 0),
+            using: client
+        )
+    }
+
+    @Test
+    func missingContentRangeOnALaterPageFailsClosed() async {
+        let client = MockPagedAPIClient(steps: [
+            .page(MockPage(rows(1...2), contentRange: "0-1/4")),
+            .page(MockPage(rows(3...4), contentRange: nil, statusCode: 200))
+        ])
+
+        await expectFailure(.missingContentRange, using: client)
+    }
+
+    @Test(arguments: ["0-1/*", "abc", "0-1", "items 0-1/2"])
+    func malformedContentRangeFailsClosed(_ value: String) async {
+        let client = MockPagedAPIClient(steps: [
+            .page(MockPage(rows(1...2), contentRange: value))
+        ])
+
+        await expectFailure(.invalidContentRange(value), using: client)
+    }
+
+    @Test
+    func rangeNotStartingAtTheCursorFailsClosed() async {
+        let client = MockPagedAPIClient(steps: [
+            .page(MockPage(rows(1...2), contentRange: "2-3/4"))
+        ])
+
+        await expectFailure(.invalidContentRange("2-3/4"), using: client)
+    }
+
+    @Test
+    func rangeBeyondTheRequestedPageFailsClosed() async {
+        let client = MockPagedAPIClient(steps: [
+            .page(MockPage(rows(1...3), contentRange: "0-2/5"))
+        ])
+
+        await expectFailure(.invalidContentRange("0-2/5"), using: client)
+    }
+
+    @Test
+    func rangeEndingBeyondTheTotalFailsClosed() async {
+        let client = MockPagedAPIClient(steps: [
+            .page(MockPage(rows(1...3), contentRange: "0-2/2"))
+        ])
+
+        await expectFailure(
+            .invalidContentRange("0-2/2"),
+            using: client,
+            pageSize: 3
+        )
+    }
+
+    @Test
+    func bodyLongerThanTheClaimedRangeFailsClosed() async {
+        let client = MockPagedAPIClient(steps: [
+            .page(MockPage(rows(1...3), contentRange: "0-1/3"))
+        ])
+
+        await expectFailure(
+            .responseCountMismatch(expected: 2, actual: 3),
+            using: client
+        )
+    }
+
+    @Test
+    func rowsNotInAscendingOrderFailClosed() async {
+        let client = MockPagedAPIClient(steps: [
+            .page(MockPage([row(2), row(1)], contentRange: "0-1/2", statusCode: 200))
+        ])
+
+        await expectFailure(.nonAscendingIDs, using: client)
+    }
+
+    @Test
+    func headerNameIsMatchedCaseInsensitively() async throws {
+        let client = MockPagedAPIClient(steps: [
+            .page(
+                MockPage(
+                    rows(1...1),
+                    contentRange: "0-0/1",
+                    statusCode: 200,
+                    headerName: "content-range"
+                )
+            )
+        ])
+
+        let result = try await fetchRows(using: client)
+
+        #expect(result == rows(1...1))
+    }
+
+    // MARK: - Failures after earlier pages
+
+    @Test
+    func httpFailureOnALaterPageThrowsInsteadOfReturningPartialRows() async {
+        let client = MockPagedAPIClient(steps: [
+            .page(MockPage(rows(1...2), contentRange: "0-1/4")),
+            .failure(APIClientError.httpError(statusCode: 500))
+        ])
+
+        do {
+            let partial = try await fetchRows(using: client)
+            Issue.record("Expected the fetch to throw, got \(partial.count) rows")
+        } catch APIClientError.httpError(let statusCode) {
+            #expect(statusCode == 500)
+            #expect(client.requests.count == 2)
+        } catch {
+            Issue.record("Unexpected error: \(error)")
+        }
+    }
+
+    @Test
+    func networkFailureOnALaterPageThrowsInsteadOfReturningPartialRows() async {
+        let client = MockPagedAPIClient(steps: [
+            .page(MockPage(rows(1...2), contentRange: "0-1/4")),
+            .failure(
+                APIClientError.networkError(URLError(.notConnectedToInternet))
+            )
+        ])
+
+        do {
+            let partial = try await fetchRows(using: client)
+            Issue.record("Expected the fetch to throw, got \(partial.count) rows")
+        } catch APIClientError.networkError(let urlError) {
+            #expect(urlError.code == .notConnectedToInternet)
+            #expect(client.requests.count == 2)
+        } catch {
+            Issue.record("Unexpected error: \(error)")
+        }
+    }
+
+    // MARK: - Clients without metadata
+
+    @Test
+    func clientImplementingOnlySendCannotSupplyPaginationMetadata() async throws {
+        // The protocol's default `sendWithMetadata` carries no headers, so a
+        // client written before it existed must make a pull fail, even when
+        // its body looks like a plausible complete answer.
+        let populated = SendOnlyAPIClient(
+            responseData: try JSONEncoder().encode(rows(1...2))
+        )
+
+        await expectFailure(.missingContentRange, using: populated)
+        #expect(populated.sendCallCount == 1)
+
+        let empty = SendOnlyAPIClient(responseData: Data("[]".utf8))
+
+        await expectFailure(.missingContentRange, using: empty)
+        #expect(empty.sendCallCount == 1)
+    }
 }
 
 // MARK: - Helpers

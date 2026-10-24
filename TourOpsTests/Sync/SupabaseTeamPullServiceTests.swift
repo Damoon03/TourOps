@@ -120,19 +120,16 @@ private final class MockAPIClient: APIClientProtocol {
         sendCallCount += 1
         lastRequest = request
 
-        let start = Int(
-            request.value(forHTTPHeaderField: "Range")?
-                .split(separator: "-").first ?? "0"
-        ) ?? 0
-        let contentRange: String
-        if response.isEmpty {
-            contentRange = "*/0"
-        } else {
-            contentRange = "\(start)-\(start + response.count - 1)/\(response.count)"
-        }
+        // Round-trip through JSON so the mock needs no force cast.
+        let data = try JSONEncoder().encode(response)
+        let body = try JSONDecoder().decode(Response.self, from: data)
+
+        let contentRange = response.isEmpty
+            ? "*/0"
+            : "0-\(response.count - 1)/\(response.count)"
 
         return APIClientResponse(
-            body: response as! Response,
+            body: body,
             statusCode: 200,
             headers: ["Content-Range": contentRange]
         )

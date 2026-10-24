@@ -37,7 +37,9 @@ struct APIClientTests {
     func sendWithMetadataPreservesResponseHeaders() async throws {
         let client = APIClient(session: makeMockSession())
         let request = URLRequest(
-            url: URL(string: "https://example.com/teams?status=200")!
+            url: URL(
+                string: "https://example.com/teams?status=200&contentRange=0-0/1"
+            )!
         )
 
         let response = try await client.sendWithMetadata(
@@ -46,7 +48,62 @@ struct APIClientTests {
         )
 
         #expect(response.body.name == "Northbound")
+        #expect(response.statusCode == 200)
         #expect(response.value(forHTTPHeaderField: "Content-Range") == "0-0/1")
+    }
+
+    @Test
+    func sendWithMetadataReportsNoHeaderWhenServerSendsNone() async throws {
+        let client = APIClient(session: makeMockSession())
+        let request = URLRequest(
+            url: URL(string: "https://example.com/teams?status=200")!
+        )
+
+        let response = try await client.sendWithMetadata(
+            request,
+            responseType: TestResponse.self
+        )
+
+        #expect(response.value(forHTTPHeaderField: "Content-Range") == nil)
+    }
+
+    @Test
+    func sendWithMetadataFindsHeaderRegardlessOfCase() async throws {
+        let client = APIClient(session: makeMockSession())
+        let request = URLRequest(
+            url: URL(
+                string: "https://example.com/teams?status=200&lowercaseContentRange=0-0/1"
+            )!
+        )
+
+        let response = try await client.sendWithMetadata(
+            request,
+            responseType: TestResponse.self
+        )
+
+        #expect(response.value(forHTTPHeaderField: "Content-Range") == "0-0/1")
+        #expect(response.value(forHTTPHeaderField: "CONTENT-RANGE") == "0-0/1")
+    }
+
+    @Test
+    func sendWithMetadataThrowsForNonSuccessfulResponse() async {
+        let client = APIClient(session: makeMockSession())
+        let request = URLRequest(
+            url: URL(string: "https://example.com/teams?status=500")!
+        )
+
+        do {
+            _ = try await client.sendWithMetadata(
+                request,
+                responseType: TestResponse.self
+            )
+
+            Issue.record("Expected APIClientError.httpError")
+        } catch APIClientError.httpError(let statusCode) {
+            #expect(statusCode == 500)
+        } catch {
+            Issue.record("Expected APIClientError.httpError, got \(error)")
+        }
     }
 
     @Test
@@ -205,11 +262,32 @@ private final class MockURLProtocol: URLProtocol {
             data = Data()
         }
 
+        // Only the headers a test asks for are attached, like a real server
+        // that does not always send pagination metadata.
+        let queryItems = URLComponents(
+            url: url,
+            resolvingAgainstBaseURL: false
+        )?.queryItems ?? []
+
+        var headerFields: [String: String] = [:]
+
+        if let contentRange = queryItems.first(
+            where: { $0.name == "contentRange" }
+        )?.value {
+            headerFields["Content-Range"] = contentRange
+        }
+
+        if let contentRange = queryItems.first(
+            where: { $0.name == "lowercaseContentRange" }
+        )?.value {
+            headerFields["content-range"] = contentRange
+        }
+
         let response = HTTPURLResponse(
             url: url,
             statusCode: statusCode,
             httpVersion: nil,
-            headerFields: ["Content-Range": "0-0/1"]
+            headerFields: headerFields
         )!
 
         client?.urlProtocol(
