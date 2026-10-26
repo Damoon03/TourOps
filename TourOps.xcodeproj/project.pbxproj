@@ -616,7 +616,7 @@
 /* Begin XCRemoteSwiftPackageReference section */
 		CE72B8EA30613DA3001D5196 /* XCRemoteSwiftPackageReference "supabase-swift" */ = {
 			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/supabase-community/supabase-swift.git?utm_source=chatgpt.com";
+			repositoryURL = "https://github.com/supabase-community/supabase-swift.git";
 			requirement = {
 				kind = upToNextMajorVersion;
 				minimumVersion = 2.5.1;
