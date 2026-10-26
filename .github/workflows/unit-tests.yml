@@ -1,0 +1,119 @@
+name: Unit tests
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: unit-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  SCHEME: TourOps
+  RESULT_BUNDLE: TestResults.xcresult
+  # Reporting only for now: the check fails on zero tests. Pin this at about
+  # 90% of the executed count recorded by the first successful run.
+  MIN_EXECUTED_TESTS: 1
+
+jobs:
+  unit-tests:
+    runs-on: macos-26
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Print toolchain
+        run: |
+          xcodebuild -version
+          xcode-select -p
+          ls /Applications | grep -i xcode || true
+          xcrun simctl list runtimes
+
+      - name: Select an iOS 26 iPhone simulator
+        run: |
+          set -euo pipefail
+          runtime_id=$(xcrun simctl list runtimes available -j \
+            | jq -r '[.runtimes[] | select(.platform == "iOS" and (.version | startswith("26.")))] | last | .identifier // empty')
+          if [ -z "$runtime_id" ]; then
+            echo "::error::No available iOS 26 simulator runtime on this runner. See the runtimes listed in the 'Print toolchain' step."
+            exit 1
+          fi
+          udid=$(xcrun simctl list devices available -j \
+            | jq -r --arg rt "$runtime_id" '.devices[$rt] // [] | map(select(.name | startswith("iPhone"))) | first | .udid // empty')
+          if [ -z "$udid" ]; then
+            device_type=$(xcrun simctl list devicetypes -j \
+              | jq -r '[.devicetypes[] | select(.name | startswith("iPhone"))] | last | .identifier // empty')
+            if [ -z "$device_type" ]; then
+              echo "::error::Runtime $runtime_id exists but no iPhone device type is available."
+              exit 1
+            fi
+            udid=$(xcrun simctl create "CI iPhone" "$device_type" "$runtime_id")
+          fi
+          echo "Runtime: $runtime_id"
+          echo "Simulator: $udid"
+          echo "SIMULATOR_UDID=$udid" >> "$GITHUB_ENV"
+
+      # The project references Secrets.xcconfig as its base configuration.
+      # It is gitignored, so create an empty one for a clean checkout.
+      - name: Create empty Secrets.xcconfig
+        run: touch Secrets.xcconfig
+
+      - name: Resolve packages
+        run: |
+          xcodebuild -resolvePackageDependencies \
+            -project TourOps.xcodeproj \
+            -scheme "$SCHEME"
+
+      - name: Run unit tests
+        run: |
+          set -o pipefail
+          # Dummy values on the command line override the target's build
+          # settings, so CI never uses the real backend configuration.
+          xcodebuild test \
+            -project TourOps.xcodeproj \
+            -scheme "$SCHEME" \
+            -destination "platform=iOS Simulator,id=$SIMULATOR_UDID" \
+            -only-testing:TourOpsTests \
+            -resultBundlePath "$RESULT_BUNDLE" \
+            -skipPackagePluginValidation \
+            -skipMacroValidation \
+            CODE_SIGNING_ALLOWED=NO \
+            SUPABASE_URL=https://ci.example.invalid \
+            SUPABASE_PUBLISHABLE_KEY=ci-dummy-key
+
+      - name: Check executed test count
+        if: always()
+        run: |
+          if [ ! -d "$RESULT_BUNDLE" ]; then
+            echo "::error::No .xcresult bundle was produced."
+            exit 1
+          fi
+          xcrun xcresulttool get test-results summary --path "$RESULT_BUNDLE" > summary.json
+          total=$(jq '.totalTestCount // 0' summary.json)
+          passed=$(jq '.passedTests // 0' summary.json)
+          failed=$(jq '.failedTests // 0' summary.json)
+          skipped=$(jq '.skippedTests // 0' summary.json)
+          {
+            echo "### Unit test counts"
+            echo "- executed: $total"
+            echo "- passed: $passed"
+            echo "- failed: $failed"
+            echo "- skipped: $skipped"
+            echo "- minimum required: $MIN_EXECUTED_TESTS"
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "executed=$total passed=$passed failed=$failed skipped=$skipped"
+          if [ "$total" -lt "$MIN_EXECUTED_TESTS" ]; then
+            echo "::error::Only $total tests executed; expected at least $MIN_EXECUTED_TESTS."
+            exit 1
+          fi
+
+      - name: Upload result bundle
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: TestResults
+          path: TestResults.xcresult
+          if-no-files-found: warn
