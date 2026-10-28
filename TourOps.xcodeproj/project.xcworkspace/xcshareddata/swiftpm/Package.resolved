@@ -2,9 +2,9 @@
   "originHash" : "58871927f4ae2ded70303d2f6f564a6eb2bc738595cf803070d21a4fbbe8cf84",
   "pins" : [
     {
-      "identity" : "supabase-swift.git?utm_source=chatgpt.com",
+      "identity" : "supabase-swift",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/supabase-community/supabase-swift.git?utm_source=chatgpt.com",
+      "location" : "https://github.com/supabase-community/supabase-swift.git",
       "state" : {
         "revision" : "40344fb3a7007d772218c6ddf6bca9febd8cb226",
         "version" : "2.55.2"

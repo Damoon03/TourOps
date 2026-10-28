@@ -8,7 +8,6 @@
 
 /* Begin PBXBuildFile section */
 		CE72B8EC30613DA3001D5196 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = CE72B8EB30613DA3001D5196 /* Supabase */; };
-		CE72B8F130613EFE001D5196 /* Secrets.xcconfig in Resources */ = {isa = PBXBuildFile; fileRef = CE72B8F030613EFE001D5196 /* Secrets.xcconfig */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -36,64 +35,6 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		CE366E273039F77700167ACB /* Exceptions for "TourOpsTests" folder in "TourOpsTests" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				Features/DraftTests.swift,
-				Features/NextShowTests.swift,
-				Features/ScheduleLogicTests.swift,
-				Features/SubmissionGateTests.swift,
-				Features/TeamImageProcessorTests.swift,
-				Network/APIClientTests.swift,
-				Repositories/MockTeamRepositoryTests.swift,
-				Repositories/PullFailureSafetyTests.swift,
-				Repositories/ShowPullCoordinatorTests.swift,
-				Repositories/ShowReconcilerTests.swift,
-				Repositories/SwiftDataShowRepositoryTests.swift,
-				Repositories/SwiftDataSyncOperationRepositoryTests.swift,
-				Repositories/SwiftDataTeamRepositoryTests.swift,
-				Repositories/SwiftDataTourRepositoryTests.swift,
-				Repositories/TeamReconcilerTests.swift,
-				Repositories/TourPullCoordinatorTests.swift,
-				Repositories/TourReconcilerTests.swift,
-				Sync/DefaultSyncServiceTests.swift,
-				Sync/MockSyncScheduler.swift,
-				Sync/SendOnlyAPIClient.swift,
-				Sync/SupabasePagedFetcherTests.swift,
-				Sync/SupabaseShowPullServiceTests.swift,
-				Sync/SupabaseSyncServiceTests.swift,
-				Sync/SupabaseTeamPullServiceTests.swift,
-				Sync/SupabaseTourPullServiceTests.swift,
-				Sync/SyncEndpointTests.swift,
-				Sync/SyncEngineTests.swift,
-				Sync/SyncOperationReducerTests.swift,
-				Sync/SyncRetryPolicyTests.swift,
-				Sync/SyncSchedulerTests.swift,
-				Sync/SyncTrackingShowRepositoryTests.swift,
-				Sync/SyncTrackingTeamRepositoryTests.swift,
-				Sync/SyncTrackingTourRepositoryTests.swift,
-				ViewModels/ShowListViewModelTests.swift,
-				ViewModels/TeamListViewModelTests.swift,
-				ViewModels/TourListViewModelTests.swift,
-			);
-			target = CE366DE43039C7FD00167ACB /* TourOpsTests */;
-		};
-		CE366E283039F77700167ACB /* Exceptions for "TourOpsUITests" folder in "TourOps" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				TourOpsUITests.swift,
-				TourOpsUITestsLaunchTests.swift,
-			);
-			target = CE366DD53039C7FC00167ACB /* TourOps */;
-		};
-		CE366E293039F77700167ACB /* Exceptions for "TourOpsUITests" folder in "TourOpsUITests" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				TourOpsUITests.swift,
-				TourOpsUITestsLaunchTests.swift,
-			);
-			target = CE366DEE3039C7FD00167ACB /* TourOpsUITests */;
-		};
 		CE72B8FD3061435D001D5196 /* Exceptions for "TourOps" folder in "TourOps" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
@@ -114,18 +55,11 @@
 		};
 		CE366E203039F77700167ACB /* TourOpsTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-				CE366E273039F77700167ACB /* Exceptions for "TourOpsTests" folder in "TourOpsTests" target */,
-			);
 			path = TourOpsTests;
 			sourceTree = "<group>";
 		};
 		CE366E233039F77700167ACB /* TourOpsUITests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-				CE366E283039F77700167ACB /* Exceptions for "TourOpsUITests" folder in "TourOps" target */,
-				CE366E293039F77700167ACB /* Exceptions for "TourOpsUITests" folder in "TourOpsUITests" target */,
-			);
 			path = TourOpsUITests;
 			sourceTree = "<group>";
 		};
@@ -195,7 +129,6 @@
 			);
 			fileSystemSynchronizedGroups = (
 				CE366DD83039C7FC00167ACB /* TourOps */,
-				CE366E233039F77700167ACB /* TourOpsUITests */,
 			);
 			name = TourOps;
 			packageProductDependencies = (
@@ -218,6 +151,9 @@
 			dependencies = (
 				CE366DE73039C7FD00167ACB /* PBXTargetDependency */,
 			);
+			fileSystemSynchronizedGroups = (
+				CE366E203039F77700167ACB /* TourOpsTests */,
+			);
 			name = TourOpsTests;
 			packageProductDependencies = (
 			);
@@ -237,6 +173,9 @@
 			);
 			dependencies = (
 				CE366DF13039C7FD00167ACB /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				CE366E233039F77700167ACB /* TourOpsUITests */,
 			);
 			name = TourOpsUITests;
 			packageProductDependencies = (
@@ -297,7 +236,6 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				CE72B8F130613EFE001D5196 /* Secrets.xcconfig in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -678,7 +616,7 @@
 /* Begin XCRemoteSwiftPackageReference section */
 		CE72B8EA30613DA3001D5196 /* XCRemoteSwiftPackageReference "supabase-swift" */ = {
 			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/supabase-community/supabase-swift.git?utm_source=chatgpt.com";
+			repositoryURL = "https://github.com/supabase-community/supabase-swift.git";
 			requirement = {
 				kind = upToNextMajorVersion;
 				minimumVersion = 2.5.1;
