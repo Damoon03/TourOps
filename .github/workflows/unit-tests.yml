@@ -55,6 +55,14 @@ jobs:
           echo "Runtime: $runtime_id"
           echo "Simulator: $udid"
           echo "SIMULATOR_UDID=$udid" >> "$GITHUB_ENV"
+          {
+            echo "### Toolchain"
+            echo '```'
+            xcodebuild -version
+            echo "iOS runtime: $runtime_id"
+            echo "Simulator UDID: $udid"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
       # The project references Secrets.xcconfig as its base configuration.
       # It is gitignored, so create an empty one for a clean checkout.
