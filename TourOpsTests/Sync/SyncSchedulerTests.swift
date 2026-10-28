@@ -416,6 +416,40 @@ struct SyncSchedulerTests {
     }
 
     @Test
+    func reconnectAndSceneActivationRequestedTogetherRunOneCycle() async {
+        let engine = MockSyncEngine()
+        let probe = PullProbe()
+        let scheduler = SyncScheduler(syncEngine: engine)
+
+        // Both triggers call the same entry point, as the app does.
+        let reconnect = Task {
+            await scheduler.runSyncCycle { await probe.pull() }
+        }
+        let activation = Task {
+            await scheduler.runSyncCycle { await probe.pull() }
+        }
+
+        await engine.waitUntilSyncStarts()
+        await settle()
+
+        #expect(engine.syncCallCount == 1)
+        #expect(probe.startedCount == 0)
+
+        engine.finishSync(with: .noWork)
+        await probe.waitUntilPullStarts(1)
+        probe.releasePulls()
+
+        await reconnect.value
+        await activation.value
+
+        // The second request arrived before the Pull started, so the one
+        // cycle already covers it.
+        #expect(probe.startedCount == 1)
+        #expect(probe.maxActiveCount == 1)
+        #expect(engine.syncCallCount == 1)
+    }
+
+    @Test
     func cancellationReleasesCoordination() async {
         let engine = MockSyncEngine()
         let probe = PullProbe()
