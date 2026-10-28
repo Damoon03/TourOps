@@ -27,6 +27,11 @@ final class SyncStatusModel {
     private(set) var isOffline = false
     private(set) var showsSynced = false
 
+    /// Incremented once for each genuine offline-to-online transition. The
+    /// first connectivity event never counts: the model starts online, so an
+    /// initial online report is not a reconnect.
+    private(set) var reconnectCount = 0
+
     @ObservationIgnored private let monitor: ConnectivityMonitorProtocol
     @ObservationIgnored private let successDuration: Duration
     @ObservationIgnored private let sleep: @Sendable (Duration) async throws -> Void
@@ -57,10 +62,14 @@ final class SyncStatusModel {
     }
 
     func setOnline(_ isOnline: Bool) {
+        let wasOffline = isOffline
+
         isOffline = !isOnline
 
         if isOffline {
             clearSuccess()
+        } else if wasOffline {
+            reconnectCount += 1
         }
     }
 

@@ -237,6 +237,19 @@ struct TourOpsApp: App {
                     }
                 }
             }
+            .onChange(of: syncStatus.reconnectCount) { _, _ in
+
+                // A reconnect while signed out or in the background is
+                // recovered by sign-in and scene activation.
+                guard authSessionController.state == .signedIn,
+                      scenePhase == .active else {
+                    return
+                }
+
+                Task {
+                    await runPushAndPull()
+                }
+            }
             .onChange(of: scenePhase) { _, newPhase in
 
                 if newPhase == .active {
