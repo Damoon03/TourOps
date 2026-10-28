@@ -152,6 +152,7 @@ jobs:
           echo "xcresulttool totalTestCount: $xcresult_total"
           echo "'Test run with' count in log: $log_total"
           echo "Using $total from: $source"
+          echo "::notice title=Unit test counts::executed=$total passed=$passed failed=$failed skipped=$skipped xcresult=$xcresult_total log=$log_total"
           {
             echo "### Unit test counts"
             echo "- executed: $total (from $source)"
