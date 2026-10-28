@@ -216,12 +216,12 @@ struct SyncStatusModelTests {
     // MARK: - Helpers
 
     private func makeModel(
-        monitor: MockConnectivityMonitor = MockConnectivityMonitor()
+        monitor: MockConnectivityMonitor? = nil
     ) -> (SyncStatusModel, ManualSleeper) {
         let sleeper = ManualSleeper()
 
         let model = SyncStatusModel(
-            monitor: monitor,
+            monitor: monitor ?? MockConnectivityMonitor(),
             successDuration: .seconds(2),
             sleep: { duration in
                 await sleeper.sleep(duration)
