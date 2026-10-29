@@ -13,9 +13,10 @@ concurrency:
 env:
   SCHEME: TourOps
   RESULT_BUNDLE: TestResults.xcresult
-  # Reporting only for now: the check fails on zero tests. Pin this at about
-  # 90% of the executed count recorded by the first successful run.
-  MIN_EXECUTED_TESTS: 1
+  # 90% of the 320 tests executed (320 passed, 0 failed) in the first green run,
+  # rounded down. Raise it when tests are added; lower it only when tests are
+  # removed on purpose.
+  MIN_EXECUTED_TESTS: 288
 
 jobs:
   unit-tests:
@@ -152,6 +153,7 @@ jobs:
           echo "xcresulttool totalTestCount: $xcresult_total"
           echo "'Test run with' count in log: $log_total"
           echo "Using $total from: $source"
+          echo "::notice title=Unit test counts::executed=$total passed=$passed failed=$failed skipped=$skipped xcresult=$xcresult_total log=$log_total"
           {
             echo "### Unit test counts"
             echo "- executed: $total (from $source)"
