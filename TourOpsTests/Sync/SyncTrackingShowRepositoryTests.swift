@@ -452,8 +452,14 @@ struct SyncTrackingShowRepositoryTests {
         blockedOperation: SyncOperation
     ) {
 
-        let (repository, syncOperationRepository, syncScheduler) =
+        let (repository, modelContext, syncScheduler) =
             try makeRepository()
+
+        // The factory returns the shared context, so a second operation
+        // repository over it sees the same queue.
+        let syncOperationRepository = SwiftDataSyncOperationRepository(
+            modelContext: modelContext
+        )
 
         let created = makeShow()
 
