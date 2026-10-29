@@ -213,6 +213,81 @@ struct SyncStatusModelTests {
         #expect(model.isOffline == false)
     }
 
+    // MARK: - Reconnects
+
+    @Test
+    func initialOnlineEventIsNotAReconnect() async {
+        let monitor = MockConnectivityMonitor()
+        let (model, _) = makeModel(monitor: monitor)
+
+        monitor.send(true)
+        monitor.finish()
+
+        await model.observeConnectivity()
+
+        #expect(model.reconnectCount == 0)
+    }
+
+    @Test
+    func initialOfflineEventIsNotAReconnect() async {
+        let monitor = MockConnectivityMonitor()
+        let (model, _) = makeModel(monitor: monitor)
+
+        monitor.send(false)
+        monitor.finish()
+
+        await model.observeConnectivity()
+
+        #expect(model.reconnectCount == 0)
+    }
+
+    @Test
+    func offlineThenOnlineIsExactlyOneReconnect() async {
+        let monitor = MockConnectivityMonitor()
+        let (model, _) = makeModel(monitor: monitor)
+
+        monitor.send(false)
+        monitor.send(true)
+        monitor.finish()
+
+        await model.observeConnectivity()
+
+        #expect(model.reconnectCount == 1)
+    }
+
+    @Test
+    func repeatedOnlineEventsDoNotCountAgain() async {
+        let monitor = MockConnectivityMonitor()
+        let (model, _) = makeModel(monitor: monitor)
+
+        monitor.send(false)
+        monitor.send(true)
+        monitor.send(true)
+        monitor.send(true)
+        monitor.finish()
+
+        await model.observeConnectivity()
+
+        #expect(model.reconnectCount == 1)
+    }
+
+    @Test
+    func eachNewOutageCountsOneReconnect() async {
+        let monitor = MockConnectivityMonitor()
+        let (model, _) = makeModel(monitor: monitor)
+
+        monitor.send(false)
+        monitor.send(true)
+        monitor.send(false)
+        monitor.send(false)
+        monitor.send(true)
+        monitor.finish()
+
+        await model.observeConnectivity()
+
+        #expect(model.reconnectCount == 2)
+    }
+
     // MARK: - Helpers
 
     private func makeModel(
