@@ -187,6 +187,108 @@ struct SyncTrackingTeamRepositoryTests {
         #expect(operation.payload == nil)
     }
 
+    // MARK: - Unresolved sync issues
+
+    @Test(arguments: [SyncOperationStatus.conflict, SyncOperationStatus.failed])
+    func updateTeamIsRejectedWhileAnUnresolvedOperationExists(
+        status: SyncOperationStatus
+    ) async throws {
+
+        let blocked = try await makeBlockedTeam(status: status)
+        let scheduleCount = blocked.syncScheduler.scheduleSyncCallCount
+
+        await #expect(throws: RepositoryError.unresolvedSyncIssue) {
+            try await blocked.repository.updateTeam(
+                edited(blocked.team, name: "Second Edit")
+            )
+        }
+
+        let persisted = try await blocked.repository.fetchTeam(
+            id: blocked.team.id
+        )
+
+        #expect(persisted.name == "First Edit")
+        #expect(persisted.version == blocked.team.version)
+
+        let operations = try await blocked.syncOperationRepository
+            .fetchOperations(forEntityID: blocked.team.id)
+
+        // The blocking operation is kept exactly as it was, and nothing new
+        // is queued.
+        #expect(operations.count == 2)
+        #expect(operations.contains(blocked.blockedOperation))
+        #expect(blocked.syncScheduler.scheduleSyncCallCount == scheduleCount)
+    }
+
+    @Test(arguments: [SyncOperationStatus.conflict, SyncOperationStatus.failed])
+    func deleteTeamIsRejectedWhileAnUnresolvedOperationExists(
+        status: SyncOperationStatus
+    ) async throws {
+
+        let blocked = try await makeBlockedTeam(status: status)
+        let scheduleCount = blocked.syncScheduler.scheduleSyncCallCount
+
+        await #expect(throws: RepositoryError.unresolvedSyncIssue) {
+            try await blocked.repository.deleteTeam(id: blocked.team.id)
+        }
+
+        let persisted = try await blocked.repository.fetchTeam(
+            id: blocked.team.id
+        )
+
+        #expect(persisted.version == blocked.team.version)
+
+        let operations = try await blocked.syncOperationRepository
+            .fetchOperations(forEntityID: blocked.team.id)
+
+        #expect(operations.count == 2)
+        #expect(operations.contains(blocked.blockedOperation))
+        #expect(blocked.syncScheduler.scheduleSyncCallCount == scheduleCount)
+    }
+
+    @Test
+    func unresolvedOperationOnOneTeamDoesNotBlockAnother() async throws {
+
+        let blocked = try await makeBlockedTeam(status: .conflict)
+
+        let other = makeTeam()
+        let otherEntity = Team(id: UUID(), name: "Other", genre: other.genre, country: other.country, city: other.city, createdAt: other.createdAt, version: other.version)
+
+        try await blocked.repository.createTeam(otherEntity)
+        try await blocked.repository.updateTeam(
+            edited(otherEntity, name: "Other Edit")
+        )
+
+        let persisted = try await blocked.repository.fetchTeam(
+            id: otherEntity.id
+        )
+
+        #expect(persisted.name == "Other Edit")
+    }
+
+    @Test
+    func updateTeamWorksAgainOnceTheBlockingOperationIsRemoved() async throws {
+
+        let blocked = try await makeBlockedTeam(status: .conflict)
+
+        // Part B will remove operations through an explicit user action. The
+        // test removes it directly only to show the guard is not sticky.
+        try await blocked.syncOperationRepository.delete(
+            blocked.blockedOperation
+        )
+
+        try await blocked.repository.updateTeam(
+            edited(blocked.team, name: "Second Edit")
+        )
+
+        let persisted = try await blocked.repository.fetchTeam(
+            id: blocked.team.id
+        )
+
+        #expect(persisted.name == "Second Edit")
+        #expect(persisted.version == blocked.team.version + 1)
+    }
+
     // MARK: - Helpers
 
     private func makeRepository() throws -> (
@@ -233,6 +335,63 @@ struct SyncTrackingTeamRepositoryTests {
             repository,
             syncOperationRepository,
             syncScheduler
+        )
+    }
+
+    private func makeBlockedTeam(
+        status: SyncOperationStatus
+    ) async throws -> (
+        repository: SyncTrackingTeamRepository,
+        syncOperationRepository: SwiftDataSyncOperationRepository,
+        syncScheduler: MockSyncScheduler,
+        team: Team,
+        blockedOperation: SyncOperation
+    ) {
+
+        let (repository, syncOperationRepository, syncScheduler) =
+            try makeRepository()
+
+        let created = makeTeam()
+
+        try await repository.createTeam(created)
+        try await repository.updateTeam(
+            edited(created, name: "First Edit")
+        )
+
+        let pending = try await syncOperationRepository
+            .fetchPendingOperations()
+
+        let updateOperation = pending.first {
+            $0.operationType == .update
+        }
+
+        var blockedOperation = try #require(updateOperation)
+
+        blockedOperation.status = status
+
+        try await syncOperationRepository.update(blockedOperation)
+
+        let current = try await repository.fetchTeam(id: created.id)
+
+        return (
+            repository,
+            syncOperationRepository,
+            syncScheduler,
+            current,
+            blockedOperation
+        )
+    }
+
+    private func edited(_ team: Team, name: String) -> Team {
+
+        Team(
+            id: team.id,
+            name: name,
+            genre: team.genre,
+            country: team.country,
+            city: team.city,
+            createdAt: team.createdAt,
+            version: team.version
         )
     }
 
