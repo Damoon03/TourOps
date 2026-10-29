@@ -73,6 +73,8 @@ final class SyncTrackingTourRepository: TourRepositoryProtocol {
     // MARK: - Update
 
     func updateTour(_ tour: Tour) async throws {
+        try await requireNoUnresolvedSyncIssue(for: tour.id)
+
         try tourRepository.stageUpdateTour(tour)
 
         let payloadData = try JSONCoding.encoder.encode(
@@ -105,6 +107,8 @@ final class SyncTrackingTourRepository: TourRepositoryProtocol {
     // MARK: - Delete
 
     func deleteTour(id: UUID) async throws {
+        try await requireNoUnresolvedSyncIssue(for: id)
+
         let tour = try await tourRepository.fetchTour(id: id)
 
         try tourRepository.stageDeleteTour(id: id)
@@ -125,5 +129,27 @@ final class SyncTrackingTourRepository: TourRepositoryProtocol {
         try modelContext.save()
 
         syncScheduler.scheduleSync()
+    }
+
+    // MARK: - Unresolved sync issues
+
+    /// Edits and deletes of an entity with a `.conflict` or `.failed`
+    /// operation are rejected. A new operation would be based on the local
+    /// version, which can match the server's version and silently overwrite
+    /// another device's change. Nothing is staged and no operation is changed.
+    private func requireNoUnresolvedSyncIssue(
+        for entityID: UUID
+    ) async throws {
+        let operations = try await syncOperationRepository.fetchOperations(
+            forEntityID: entityID
+        )
+
+        let hasUnresolvedIssue = operations.contains {
+            $0.status == .conflict || $0.status == .failed
+        }
+
+        if hasUnresolvedIssue {
+            throw RepositoryError.unresolvedSyncIssue
+        }
     }
 }

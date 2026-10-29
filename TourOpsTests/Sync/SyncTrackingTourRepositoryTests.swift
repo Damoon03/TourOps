@@ -184,6 +184,108 @@ struct SyncTrackingTourRepositoryTests {
         #expect(operation.payload == nil)
     }
 
+    // MARK: - Unresolved sync issues
+
+    @Test(arguments: [SyncOperationStatus.conflict, SyncOperationStatus.failed])
+    func updateTourIsRejectedWhileAnUnresolvedOperationExists(
+        status: SyncOperationStatus
+    ) async throws {
+
+        let blocked = try await makeBlockedTour(status: status)
+        let scheduleCount = blocked.syncScheduler.scheduleSyncCallCount
+
+        await #expect(throws: RepositoryError.unresolvedSyncIssue) {
+            try await blocked.repository.updateTour(
+                edited(blocked.tour, name: "Second Edit")
+            )
+        }
+
+        let persisted = try await blocked.repository.fetchTour(
+            id: blocked.tour.id
+        )
+
+        #expect(persisted.name == "First Edit")
+        #expect(persisted.version == blocked.tour.version)
+
+        let operations = try await blocked.syncOperationRepository
+            .fetchOperations(forEntityID: blocked.tour.id)
+
+        // The blocking operation is kept exactly as it was, and nothing new
+        // is queued.
+        #expect(operations.count == 2)
+        #expect(operations.contains(blocked.blockedOperation))
+        #expect(blocked.syncScheduler.scheduleSyncCallCount == scheduleCount)
+    }
+
+    @Test(arguments: [SyncOperationStatus.conflict, SyncOperationStatus.failed])
+    func deleteTourIsRejectedWhileAnUnresolvedOperationExists(
+        status: SyncOperationStatus
+    ) async throws {
+
+        let blocked = try await makeBlockedTour(status: status)
+        let scheduleCount = blocked.syncScheduler.scheduleSyncCallCount
+
+        await #expect(throws: RepositoryError.unresolvedSyncIssue) {
+            try await blocked.repository.deleteTour(id: blocked.tour.id)
+        }
+
+        let persisted = try await blocked.repository.fetchTour(
+            id: blocked.tour.id
+        )
+
+        #expect(persisted.version == blocked.tour.version)
+
+        let operations = try await blocked.syncOperationRepository
+            .fetchOperations(forEntityID: blocked.tour.id)
+
+        #expect(operations.count == 2)
+        #expect(operations.contains(blocked.blockedOperation))
+        #expect(blocked.syncScheduler.scheduleSyncCallCount == scheduleCount)
+    }
+
+    @Test
+    func unresolvedOperationOnOneTourDoesNotBlockAnother() async throws {
+
+        let blocked = try await makeBlockedTour(status: .conflict)
+
+        let other = makeTour()
+        let otherEntity = Tour(id: UUID(), teamID: other.teamID, name: "Other", startDate: other.startDate, endDate: other.endDate, createdAt: other.createdAt, version: other.version)
+
+        try await blocked.repository.createTour(otherEntity)
+        try await blocked.repository.updateTour(
+            edited(otherEntity, name: "Other Edit")
+        )
+
+        let persisted = try await blocked.repository.fetchTour(
+            id: otherEntity.id
+        )
+
+        #expect(persisted.name == "Other Edit")
+    }
+
+    @Test
+    func updateTourWorksAgainOnceTheBlockingOperationIsRemoved() async throws {
+
+        let blocked = try await makeBlockedTour(status: .conflict)
+
+        // Part B will remove operations through an explicit user action. The
+        // test removes it directly only to show the guard is not sticky.
+        try await blocked.syncOperationRepository.delete(
+            blocked.blockedOperation
+        )
+
+        try await blocked.repository.updateTour(
+            edited(blocked.tour, name: "Second Edit")
+        )
+
+        let persisted = try await blocked.repository.fetchTour(
+            id: blocked.tour.id
+        )
+
+        #expect(persisted.name == "Second Edit")
+        #expect(persisted.version == blocked.tour.version + 1)
+    }
+
     // MARK: - Helpers
 
     private func makeRepository() throws -> (
@@ -230,6 +332,63 @@ struct SyncTrackingTourRepositoryTests {
             repository,
             syncOperationRepository,
             syncScheduler
+        )
+    }
+
+    private func makeBlockedTour(
+        status: SyncOperationStatus
+    ) async throws -> (
+        repository: SyncTrackingTourRepository,
+        syncOperationRepository: SwiftDataSyncOperationRepository,
+        syncScheduler: MockSyncScheduler,
+        tour: Tour,
+        blockedOperation: SyncOperation
+    ) {
+
+        let (repository, syncOperationRepository, syncScheduler) =
+            try makeRepository()
+
+        let created = makeTour()
+
+        try await repository.createTour(created)
+        try await repository.updateTour(
+            edited(created, name: "First Edit")
+        )
+
+        let pending = try await syncOperationRepository
+            .fetchPendingOperations()
+
+        let updateOperation = pending.first {
+            $0.operationType == .update
+        }
+
+        var blockedOperation = try #require(updateOperation)
+
+        blockedOperation.status = status
+
+        try await syncOperationRepository.update(blockedOperation)
+
+        let current = try await repository.fetchTour(id: created.id)
+
+        return (
+            repository,
+            syncOperationRepository,
+            syncScheduler,
+            current,
+            blockedOperation
+        )
+    }
+
+    private func edited(_ tour: Tour, name: String) -> Tour {
+
+        Tour(
+            id: tour.id,
+            teamID: tour.teamID,
+            name: name,
+            startDate: tour.startDate,
+            endDate: tour.endDate,
+            createdAt: tour.createdAt,
+            version: tour.version
         )
     }
 
