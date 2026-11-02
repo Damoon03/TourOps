@@ -17,6 +17,7 @@ enum SyncStatusPresentation: Equatable {
     case hidden
     case offline(unsyncedCount: Int)
     case unsynced(count: Int)
+    case needsAttention(count: Int)
     case synced
 }
 
@@ -96,7 +97,19 @@ final class SyncStatusModel {
 
     // MARK: - Presentation
 
-    func presentation(unsyncedCount: Int) -> SyncStatusPresentation {
+    /// - Parameters:
+    ///   - unsyncedCount: Operations still waiting to be sent.
+    ///   - needsAttentionCount: Operations in `.conflict` or `.failed`. They
+    ///     do not resolve themselves, so they take priority over every other
+    ///     state, including offline.
+    func presentation(
+        unsyncedCount: Int,
+        needsAttentionCount: Int = 0
+    ) -> SyncStatusPresentation {
+        if needsAttentionCount > 0 {
+            return .needsAttention(count: needsAttentionCount)
+        }
+
         if isOffline {
             return .offline(unsyncedCount: unsyncedCount)
         }

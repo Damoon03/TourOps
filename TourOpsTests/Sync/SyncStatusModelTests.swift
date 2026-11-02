@@ -184,6 +184,63 @@ struct SyncStatusModelTests {
         #expect(model.presentation(unsyncedCount: 1) == .unsynced(count: 1))
     }
 
+    // MARK: - Needs attention
+
+    @Test
+    func needsAttentionIsShownWhenOnline() {
+        let (model, _) = makeModel()
+
+        #expect(
+            model.presentation(unsyncedCount: 0, needsAttentionCount: 2)
+                == .needsAttention(count: 2)
+        )
+    }
+
+    @Test
+    func needsAttentionTakesPriorityOverOffline() {
+        let (model, _) = makeModel()
+
+        model.setOnline(false)
+
+        #expect(
+            model.presentation(unsyncedCount: 3, needsAttentionCount: 1)
+                == .needsAttention(count: 1)
+        )
+    }
+
+    @Test
+    func needsAttentionTakesPriorityOverWaitingAndSynced() {
+        let (model, _) = makeModel()
+
+        model.recordRunResult(.success)
+
+        #expect(
+            model.presentation(unsyncedCount: 4, needsAttentionCount: 1)
+                == .needsAttention(count: 1)
+        )
+        #expect(
+            model.presentation(unsyncedCount: 0, needsAttentionCount: 1)
+                == .needsAttention(count: 1)
+        )
+    }
+
+    @Test
+    func waitingAndOfflineAreUnchangedWithoutAttentionItems() {
+        let (model, _) = makeModel()
+
+        #expect(
+            model.presentation(unsyncedCount: 2, needsAttentionCount: 0)
+                == .unsynced(count: 2)
+        )
+
+        model.setOnline(false)
+
+        #expect(
+            model.presentation(unsyncedCount: 2, needsAttentionCount: 0)
+                == .offline(unsyncedCount: 2)
+        )
+    }
+
     // MARK: - Connectivity stream
 
     @Test

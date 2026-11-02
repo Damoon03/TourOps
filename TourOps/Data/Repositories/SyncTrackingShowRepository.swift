@@ -73,6 +73,8 @@ final class SyncTrackingShowRepository: ShowRepositoryProtocol {
     // MARK: - Update
 
     func updateShow(_ show: Show) async throws {
+        try await requireNoUnresolvedSyncIssue(for: show.id)
+
         try showRepository.stageUpdateShow(show)
 
         let payloadData = try JSONCoding.encoder.encode(
@@ -105,6 +107,8 @@ final class SyncTrackingShowRepository: ShowRepositoryProtocol {
     // MARK: - Delete
 
     func deleteShow(id: UUID) async throws {
+        try await requireNoUnresolvedSyncIssue(for: id)
+
         let show = try await showRepository.fetchShow(id: id)
 
         try showRepository.stageDeleteShow(id: id)
@@ -125,5 +129,27 @@ final class SyncTrackingShowRepository: ShowRepositoryProtocol {
         try modelContext.save()
 
         syncScheduler.scheduleSync()
+    }
+
+    // MARK: - Unresolved sync issues
+
+    /// Edits and deletes of an entity with a `.conflict` or `.failed`
+    /// operation are rejected. A new operation would be based on the local
+    /// version, which can match the server's version and silently overwrite
+    /// another device's change. Nothing is staged and no operation is changed.
+    private func requireNoUnresolvedSyncIssue(
+        for entityID: UUID
+    ) async throws {
+        let operations = try await syncOperationRepository.fetchOperations(
+            forEntityID: entityID
+        )
+
+        let hasUnresolvedIssue = operations.contains {
+            $0.status == .conflict || $0.status == .failed
+        }
+
+        if hasUnresolvedIssue {
+            throw RepositoryError.unresolvedSyncIssue
+        }
     }
 }

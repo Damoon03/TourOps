@@ -2,9 +2,10 @@
 //  SyncStatusPill.swift
 //  TourOps
 //
-//  A compact pill that shows the sync state: offline (with or without queued
-//  changes), the number of changes still waiting to sync, or a brief "Synced"
-//  confirmation after a push completes. It is hidden otherwise.
+//  A compact pill that shows the sync state: changes that need attention
+//  (conflict or failed), offline (with or without queued changes), the number
+//  of changes still waiting to sync, or a brief "Synced" confirmation after a
+//  push completes. It is hidden otherwise.
 //
 //  The unsynced count is a read-only view of the existing queue
 //  (`SyncOperationEntity`). It deliberately does not call
@@ -23,8 +24,14 @@ struct SyncStatusPill: View {
     @Query private var operations: [SyncOperationEntity]
 
     var body: some View {
+        let needsAttentionCount = operations.filter {
+            $0.status == SyncOperationStatus.conflict.rawValue
+                || $0.status == SyncOperationStatus.failed.rawValue
+        }.count
+
         let presentation = status.presentation(
-            unsyncedCount: operations.count
+            unsyncedCount: operations.count - needsAttentionCount,
+            needsAttentionCount: needsAttentionCount
         )
 
         if presentation != .hidden {
@@ -58,6 +65,8 @@ struct SyncStatusPill: View {
             return Palette.statusActive
         case .offline:
             return Palette.secondaryText
+        case .needsAttention:
+            return Palette.destructive
         case .unsynced, .hidden:
             return Palette.orange
         }
@@ -75,6 +84,8 @@ struct SyncStatusPill: View {
                 : "Offline"
         case .unsynced(let count):
             return Self.unsyncedText(count)
+        case .needsAttention(let count):
+            return Self.attentionText(count)
         }
     }
 
@@ -92,11 +103,19 @@ struct SyncStatusPill: View {
                 : "Offline"
         case .unsynced(let count):
             return Self.waitingText(count)
+        case .needsAttention(let count):
+            return Self.attentionText(count)
         }
     }
 
     private static func unsyncedText(_ count: Int) -> String {
         count == 1 ? "1 change not synced" : "\(count) changes not synced"
+    }
+
+    private static func attentionText(_ count: Int) -> String {
+        count == 1
+            ? "1 change needs attention"
+            : "\(count) changes need attention"
     }
 
     private static func waitingText(_ count: Int) -> String {

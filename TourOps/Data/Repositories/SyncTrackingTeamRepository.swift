@@ -73,6 +73,8 @@ final class SyncTrackingTeamRepository: TeamRepositoryProtocol {
     // MARK: - Update
 
     func updateTeam(_ team: Team) async throws {
+        try await requireNoUnresolvedSyncIssue(for: team.id)
+
         try teamRepository.stageUpdateTeam(team)
 
         // operation.version is the expected server base (N).
@@ -108,6 +110,8 @@ final class SyncTrackingTeamRepository: TeamRepositoryProtocol {
     // MARK: - Delete
 
     func deleteTeam(id: UUID) async throws {
+        try await requireNoUnresolvedSyncIssue(for: id)
+
         let team = try await teamRepository.fetchTeam(id: id)
 
         try teamRepository.stageDeleteTeam(id: id)
@@ -128,5 +132,27 @@ final class SyncTrackingTeamRepository: TeamRepositoryProtocol {
         try modelContext.save()
 
         syncScheduler.scheduleSync()
+    }
+
+    // MARK: - Unresolved sync issues
+
+    /// Edits and deletes of an entity with a `.conflict` or `.failed`
+    /// operation are rejected. A new operation would be based on the local
+    /// version, which can match the server's version and silently overwrite
+    /// another device's change. Nothing is staged and no operation is changed.
+    private func requireNoUnresolvedSyncIssue(
+        for entityID: UUID
+    ) async throws {
+        let operations = try await syncOperationRepository.fetchOperations(
+            forEntityID: entityID
+        )
+
+        let hasUnresolvedIssue = operations.contains {
+            $0.status == .conflict || $0.status == .failed
+        }
+
+        if hasUnresolvedIssue {
+            throw RepositoryError.unresolvedSyncIssue
+        }
     }
 }
