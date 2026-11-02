@@ -252,7 +252,7 @@ struct TourReconcilerTests {
     }
 
     @Test
-    func failedOperationAllowsRemoteTourToWin() async throws {
+    func failedOperationBlocksNewerRemoteTour() async throws {
         let localTour = makeTour(
             name: "Local Tour",
             version: 1
@@ -282,8 +282,10 @@ struct TourReconcilerTests {
             id: localTour.id
         )
 
-        #expect(fetchedTour.name == "Remote Tour")
-        #expect(fetchedTour.version == 2)
+        // A failed operation still protects the local edit. Only retry or
+        // discard resolves it.
+        #expect(fetchedTour.name == "Local Tour")
+        #expect(fetchedTour.version == 1)
     }
 
     // MARK: - Remote Deletion

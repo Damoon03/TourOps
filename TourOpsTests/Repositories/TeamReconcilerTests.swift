@@ -344,7 +344,7 @@ struct TeamReconcilerTests {
     // MARK: - Failed Operation
 
     @Test
-    func failedOperationDoesNotBlockNewerRemoteTeam() async throws {
+    func failedOperationBlocksNewerRemoteTeam() async throws {
         let localTeam = makeTeam(
             name: "Local Band",
             version: 2
@@ -374,8 +374,10 @@ struct TeamReconcilerTests {
             id: localTeam.id
         )
 
-        #expect(fetchedTeam.name == "Remote Band")
-        #expect(fetchedTeam.version == 5)
+        // A failed operation still protects the local edit. Only retry or
+        // discard resolves it.
+        #expect(fetchedTeam.name == "Local Band")
+        #expect(fetchedTeam.version == 2)
     }
 
     // MARK: - Local-only
