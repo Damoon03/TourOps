@@ -290,7 +290,7 @@ struct ShowReconcilerTests {
     }
 
     @Test
-    func failedOperationAllowsRemoteShowToWin() async throws {
+    func failedOperationBlocksNewerRemoteShow() async throws {
         let localShow = makeShow(
             version: 1,
             name: "Local Show"
@@ -326,8 +326,10 @@ struct ShowReconcilerTests {
             id: localShow.id
         )
 
-        #expect(fetchedShow.name == "Remote Show")
-        #expect(fetchedShow.version == 2)
+        // A failed operation still protects the local edit. Only retry or
+        // discard resolves it.
+        #expect(fetchedShow.name == "Local Show")
+        #expect(fetchedShow.version == 1)
     }
 
     // MARK: - Local Shows Missing From Remote

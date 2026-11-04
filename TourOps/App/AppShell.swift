@@ -20,6 +20,7 @@ struct AppShell: View {
     let teamRepository: TeamRepositoryProtocol
     let tourRepository: TourRepositoryProtocol
     let showRepository: ShowRepositoryProtocol
+    let resolver: SyncConflictResolving
 
     @Environment(DataRefreshSignal.self) private var refreshSignal
     @Environment(\.colorScheme) private var colorScheme
@@ -27,6 +28,7 @@ struct AppShell: View {
     @State private var selectedTab: AppTab = .schedule
     @State private var isMenuOpen = false
     @State private var activeSheet: CreateAction?
+    @State private var showingSyncIssues = false
 
     /// Teams and tours the create menu needs to know about: the pickers in the
     /// forms, and whether a show or tour can be created at all.
@@ -42,11 +44,13 @@ struct AppShell: View {
     init(
         teamRepository: TeamRepositoryProtocol,
         tourRepository: TourRepositoryProtocol,
-        showRepository: ShowRepositoryProtocol
+        showRepository: ShowRepositoryProtocol,
+        resolver: SyncConflictResolving
     ) {
         self.teamRepository = teamRepository
         self.tourRepository = tourRepository
         self.showRepository = showRepository
+        self.resolver = resolver
 
         _teamModel = State(initialValue: TeamListViewModel(repository: teamRepository))
         _tourModel = State(initialValue: TourListViewModel(repository: tourRepository))
@@ -81,6 +85,15 @@ struct AppShell: View {
             }
 
             controls
+                .sheet(isPresented: $showingSyncIssues) {
+                    SyncIssuesView(
+                        resolver: resolver,
+                        refreshSignal: refreshSignal,
+                        teamRepository: teamRepository,
+                        tourRepository: tourRepository,
+                        showRepository: showRepository
+                    )
+                }
         }
         .animation(.snappy(duration: 0.28), value: isMenuOpen)
         .sheet(
@@ -149,8 +162,12 @@ struct AppShell: View {
                 }
             }
             .overlay(alignment: .topLeading) {
-                // Shows offline, unsynced-count or brief synced state.
-                SyncStatusPill()
+                // Shows offline, unsynced-count, needs-attention or brief
+                // synced state. Tapping it while items need attention opens
+                // the list of items to resolve.
+                SyncStatusPill {
+                    showingSyncIssues = true
+                }
                     .padding(.leading, 6)
                     .alignmentGuide(.top) { dimensions in
                         dimensions[.bottom] + 10
