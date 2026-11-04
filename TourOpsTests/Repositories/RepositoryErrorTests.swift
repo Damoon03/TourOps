@@ -13,7 +13,8 @@ struct RepositoryErrorTests {
     func unresolvedSyncIssueTellsTheUserWhatToDo() {
         let message = RepositoryError.unresolvedSyncIssue.localizedDescription
 
-        #expect(message.contains("Resolve or retry it first"))
+        #expect(message.contains("tap the sync status"))
+        #expect(message.contains("resolve or retry it"))
     }
 
     @Test

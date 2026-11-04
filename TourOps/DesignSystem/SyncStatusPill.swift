@@ -23,39 +23,65 @@ struct SyncStatusPill: View {
     @Environment(SyncStatusModel.self) private var status
     @Query private var operations: [SyncOperationEntity]
 
+    /// Called when the pill is tapped while items need attention. In every
+    /// other state the pill is a plain label.
+    private let onTap: (() -> Void)?
+
+    init(onTap: (() -> Void)? = nil) {
+        self.onTap = onTap
+    }
+
     var body: some View {
-        let needsAttentionCount = operations.filter {
+        let attentionOperations = operations.filter {
             $0.status == SyncOperationStatus.conflict.rawValue
                 || $0.status == SyncOperationStatus.failed.rawValue
-        }.count
+        }
+
+        // Counted per item, because the sheet lists one row per item.
+        let needsAttentionCount = Set(attentionOperations.map(\.entityID)).count
 
         let presentation = status.presentation(
-            unsyncedCount: operations.count - needsAttentionCount,
+            unsyncedCount: operations.count - attentionOperations.count,
             needsAttentionCount: needsAttentionCount
         )
 
         if presentation != .hidden {
-            HStack(spacing: 7) {
-                Circle()
-                    .fill(dotColor(for: presentation))
-                    .frame(width: 7, height: 7)
-                    .accessibilityHidden(true)
+            if case .needsAttention(let count) = presentation, let onTap {
+                Button(action: onTap) {
+                    label(for: presentation)
+                }
+                .buttonStyle(.plain)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(Self.attentionText(count))
+                .accessibilityHint("Opens the list of items to resolve")
+                .accessibilityAddTraits(.isButton)
+            } else {
+                label(for: presentation)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(accessibilityLabel(for: presentation))
+            }
+        }
+    }
 
-                Text(title(for: presentation))
-                    .font(.caption.weight(.medium))
-                    .foregroundStyle(Palette.primaryText)
-                    .lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
-            .frame(minHeight: 30)
-            .background(.ultraThinMaterial, in: Capsule())
-            .overlay {
-                Capsule().strokeBorder(Palette.hairline, lineWidth: 0.7)
-            }
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel(accessibilityLabel(for: presentation))
+    private func label(for presentation: SyncStatusPresentation) -> some View {
+        HStack(spacing: 7) {
+            Circle()
+                .fill(dotColor(for: presentation))
+                .frame(width: 7, height: 7)
+                .accessibilityHidden(true)
+
+            Text(title(for: presentation))
+                .font(.caption.weight(.medium))
+                .foregroundStyle(Palette.primaryText)
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+        .frame(minHeight: 30)
+        .background(.ultraThinMaterial, in: Capsule())
+        .overlay {
+            Capsule().strokeBorder(Palette.hairline, lineWidth: 0.7)
         }
     }
 
@@ -114,8 +140,8 @@ struct SyncStatusPill: View {
 
     private static func attentionText(_ count: Int) -> String {
         count == 1
-            ? "1 change needs attention"
-            : "\(count) changes need attention"
+            ? "1 item needs attention"
+            : "\(count) items need attention"
     }
 
     private static func waitingText(_ count: Int) -> String {
