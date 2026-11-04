@@ -213,7 +213,7 @@ struct SyncConflictResolverTests {
     func anIssueWithoutOperationsThrowsAndSkipsTheServer() async throws {
         let env = try makeEnvironment()
 
-        let stale = makeIssue(
+        let stale = try makeIssue(
             makeOperation(
                 entityID: UUID(),
                 type: .update,
