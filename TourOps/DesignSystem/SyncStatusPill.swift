@@ -49,6 +49,8 @@ struct SyncStatusPill: View {
             if case .needsAttention(let count) = presentation, let onTap {
                 Button(action: onTap) {
                     label(for: presentation)
+                        .frame(minHeight: 44)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .accessibilityElement(children: .ignore)
