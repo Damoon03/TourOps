@@ -20,7 +20,8 @@ extension RepositoryError: LocalizedError {
         switch self {
         case .unresolvedSyncIssue:
             return "This item has a sync problem that needs attention. "
-                + "Resolve or retry it first, then try again."
+                + "Close any open edit screen, then tap the sync status "
+                + "to resolve or retry it."
         case .notFound, .duplicate, .staleVersion:
             return nil
         }

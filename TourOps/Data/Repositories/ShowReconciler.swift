@@ -54,10 +54,8 @@ final class ShowReconciler {
 
             let hasBlockingOperation = operations.contains {
                 switch $0.status {
-                case .pending, .processing, .conflict:
+                case .pending, .processing, .conflict, .failed:
                     true
-                case .failed:
-                    false
                 }
             }
 

@@ -30,6 +30,7 @@ struct TourOpsApp: App {
     private let showPullCoordinator: ShowPullCoordinator
     private let refreshSignal: DataRefreshSignal
     private let syncStatus: SyncStatusModel
+    private let syncConflictResolver: SyncConflictResolving
 
     init() {
 
@@ -165,6 +166,17 @@ struct TourOpsApp: App {
                 reconciler: showReconciler
             )
 
+            self.syncConflictResolver = SyncConflictResolver(
+                scheduler: syncScheduler,
+                teamRepository: teamRepository,
+                tourRepository: tourRepository,
+                showRepository: showRepository,
+                teamPullService: teamPullService,
+                tourPullService: tourPullService,
+                showPullService: showPullService,
+                modelContext: modelContext
+            )
+
             self.teamRepository =
                 SyncTrackingTeamRepository(
                     teamRepository: teamRepository,
@@ -215,7 +227,8 @@ struct TourOpsApp: App {
                     AppShell(
                         teamRepository: teamRepository,
                         tourRepository: tourRepository,
-                        showRepository: showRepository
+                        showRepository: showRepository,
+                        resolver: syncConflictResolver
                     )
                 }
             }
