@@ -108,29 +108,170 @@ struct SupabaseSyncServiceTests {
         }
     }
 
-    @Test
-    func createTreatsHTTP409AsSuccessfulDuplicate() async throws {
+    // MARK: - Create replay and HTTP 409
 
-        let apiClient = MockAPIClient(
-            response: .http409
+    @Test
+    func createIsAppliedWhenHTTP409AndTheRowIsFound() async throws {
+
+        let environment = makeEnvironment(
+            response: .http409,
+            readResponse: .success
         )
 
-        let requestBuilder = MockSyncRequestBuilder()
+        try await environment.service.execute(makeCreateOperation())
 
-        let authService = MockAuthService()
+        #expect(environment.apiClient.requests.count == 2)
+    }
 
-        let service = SupabaseSyncService(
-            apiClient: apiClient,
-            requestBuilder: requestBuilder,
-            authService: authService
+    @Test
+    func bareHTTP409OnCreateFailsWhenTheRowIsNotFound() async {
+
+        let environment = makeEnvironment(
+            response: .http409,
+            readResponse: .empty
+        )
+
+        do {
+            try await environment.service.execute(makeCreateOperation())
+
+            Issue.record("Expected SyncError.createNotConfirmed")
+
+        } catch SyncError.createNotConfirmed {
+            // Expected.
+        } catch {
+            Issue.record(
+                "Expected SyncError.createNotConfirmed, got \(error)"
+            )
+        }
+    }
+
+    @Test
+    func createPropagatesANetworkErrorFromTheConfirmingRead() async {
+
+        let environment = makeEnvironment(
+            response: .http409,
+            readResponse: .networkError
+        )
+
+        do {
+            try await environment.service.execute(makeCreateOperation())
+
+            Issue.record("Expected APIClientError.networkError")
+
+        } catch APIClientError.networkError {
+            // Expected.
+        } catch {
+            Issue.record(
+                "Expected APIClientError.networkError, got \(error)"
+            )
+        }
+    }
+
+    @Test
+    func createPropagatesAServerErrorFromTheConfirmingRead() async {
+
+        let environment = makeEnvironment(
+            response: .http409,
+            readResponse: .http500
+        )
+
+        do {
+            try await environment.service.execute(makeCreateOperation())
+
+            Issue.record("Expected APIClientError.httpError")
+
+        } catch APIClientError.httpError(let statusCode) {
+            #expect(statusCode == 500)
+        } catch {
+            Issue.record(
+                "Expected APIClientError.httpError, got \(error)"
+            )
+        }
+    }
+
+    @Test
+    func confirmingReadFiltersByIDAndOwnerAndCarriesTheAuthHeaders() async throws {
+
+        let environment = makeEnvironment(
+            response: .http409,
+            readResponse: .success
         )
 
         let operation = makeCreateOperation()
 
-        try await service.execute(operation)
+        try await environment.service.execute(operation)
 
-        #expect(apiClient.sendCallCount == 1)
-        #expect(requestBuilder.buildCallCount == 1)
+        let read = try #require(environment.apiClient.requests.last)
+
+        let components = try #require(
+            URLComponents(
+                url: try #require(read.url),
+                resolvingAgainstBaseURL: false
+            )
+        )
+
+        let items = Dictionary(
+            uniqueKeysWithValues: (components.queryItems ?? []).map {
+                ($0.name, $0.value ?? "")
+            }
+        )
+
+        #expect(read.httpMethod == "GET")
+        #expect(components.path == "/rest/v1/teams")
+        #expect(items["id"] == "eq.\(operation.entityID.uuidString)")
+        #expect(
+            items["user_id"] == "eq.\(environment.authService.fixedUserID.uuidString)"
+        )
+        #expect(items["select"] == "id")
+        #expect(read.httpBody == nil)
+        #expect(read.value(forHTTPHeaderField: "apikey") == "test-api-key")
+        #expect(
+            read.value(forHTTPHeaderField: "Authorization")
+                == "Bearer test-access-token"
+        )
+        #expect(read.value(forHTTPHeaderField: "Prefer") == nil)
+    }
+
+    @Test
+    func createErrorsOtherThanHTTP409DoNotTriggerARead() async {
+
+        for response in [
+            MockAPIClient.Response.http500,
+            MockAPIClient.Response.networkError
+        ] {
+            let environment = makeEnvironment(
+                response: response,
+                readResponse: .success
+            )
+
+            await #expect(throws: (any Error).self) {
+                try await environment.service.execute(
+                    makeCreateOperation()
+                )
+            }
+
+            #expect(environment.apiClient.requests.count == 1)
+        }
+    }
+
+    @Test
+    func deleteHTTP409ThrowsConflictWithoutReading() async {
+
+        let environment = makeEnvironment(
+            response: .http409,
+            readResponse: .success
+        )
+
+        do {
+            try await environment.service.execute(makeDeleteOperation())
+
+            Issue.record("Expected SyncError.conflict")
+
+        } catch SyncError.conflict {
+            #expect(environment.apiClient.requests.count == 1)
+        } catch {
+            Issue.record("Expected SyncError.conflict, got \(error)")
+        }
     }
 
     @Test
@@ -170,6 +311,37 @@ struct SupabaseSyncServiceTests {
 }
 
 private extension SupabaseSyncServiceTests {
+
+    struct Environment {
+        let service: SupabaseSyncService
+        let apiClient: MockAPIClient
+        let authService: MockAuthService
+    }
+
+    func makeEnvironment(
+        response: MockAPIClient.Response,
+        readResponse: MockAPIClient.Response
+    ) -> Environment {
+
+        let apiClient = MockAPIClient(
+            response: response,
+            readResponse: readResponse
+        )
+
+        let authService = MockAuthService()
+
+        let service = SupabaseSyncService(
+            apiClient: apiClient,
+            requestBuilder: MockSyncRequestBuilder(),
+            authService: authService
+        )
+
+        return Environment(
+            service: service,
+            apiClient: apiClient,
+            authService: authService
+        )
+    }
 
     func makeUpdateOperation() -> SyncOperation {
 
@@ -245,14 +417,25 @@ private final class MockAPIClient: APIClientProtocol {
         case success
         case empty
         case http409
+        case http500
+        case networkError
     }
 
+    /// Answers the first request. Any later request is the confirming read
+    /// of a create and gets `readResponse`.
     private let response: Response
+    private let readResponse: Response
 
-    private(set) var sendCallCount = 0
+    private(set) var requests: [URLRequest] = []
 
-    init(response: Response) {
+    var sendCallCount: Int { requests.count }
+
+    init(
+        response: Response,
+        readResponse: Response = .empty
+    ) {
         self.response = response
+        self.readResponse = readResponse
     }
 
     func send<Response: Decodable>(
@@ -260,9 +443,11 @@ private final class MockAPIClient: APIClientProtocol {
         responseType: Response.Type
     ) async throws -> Response {
 
-        sendCallCount += 1
+        let current = requests.isEmpty ? response : readResponse
 
-        switch response {
+        requests.append(request)
+
+        switch current {
 
         case .success:
             return try makeResponse(
@@ -283,6 +468,16 @@ private final class MockAPIClient: APIClientProtocol {
         case .http409:
             throw APIClientError.httpError(
                 statusCode: 409
+            )
+
+        case .http500:
+            throw APIClientError.httpError(
+                statusCode: 500
+            )
+
+        case .networkError:
+            throw APIClientError.networkError(
+                URLError(.notConnectedToInternet)
             )
         }
     }
@@ -308,11 +503,17 @@ private final class MockSyncRequestBuilder: SyncRequestBuilderProtocol {
 
         buildCallCount += 1
 
-        return URLRequest(
+        var request = URLRequest(
             url: URL(
-                string: "https://example.com"
+                string: "https://example.com/rest/v1/teams"
             )!
         )
+
+        request.httpMethod = "POST"
+        request.setValue("test-api-key", forHTTPHeaderField: "apikey")
+        request.setValue("return=representation", forHTTPHeaderField: "Prefer")
+
+        return request
     }
 }
 
@@ -320,6 +521,8 @@ private final class MockAuthService: SyncAuthProviding {
     
     private(set) var accessTokenCallCount = 0
     private(set) var userIDCallCount = 0
+
+    let fixedUserID = UUID()
 
     func accessToken() async throws -> String {
 
@@ -332,6 +535,6 @@ private final class MockAuthService: SyncAuthProviding {
 
         userIDCallCount += 1
 
-        return UUID()
+        return fixedUserID
     }
 }
