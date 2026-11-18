@@ -155,6 +155,53 @@ struct SyncEngineTests {
     }
 
     @Test
+    func syncRetriesAnUnconfirmedCreateThroughTheGenericPath() async throws {
+        let repository = MockSyncOperationRepository()
+        let service = MockSyncService()
+
+        service.error = SyncError.createNotConfirmed
+
+        repository.operations = [makeOperation(retryCount: 0)]
+
+        let engine = makeEngine(
+            repository: repository,
+            service: service
+        )
+
+        await engine.sync()
+
+        let finalOperation = repository.updatedOperations.last
+
+        #expect(finalOperation?.status == .pending)
+        #expect(finalOperation?.retryCount == 1)
+    }
+
+    @Test
+    func syncFailsAnUnconfirmedCreateAtTheRetryLimit() async throws {
+        let repository = MockSyncOperationRepository()
+        let service = MockSyncService()
+
+        service.error = SyncError.createNotConfirmed
+
+        repository.operations = [makeOperation(retryCount: 3)]
+
+        let engine = makeEngine(
+            repository: repository,
+            service: service,
+            retryPolicy: SyncRetryPolicy(
+                maxRetryCount: 3
+            )
+        )
+
+        await engine.sync()
+
+        let finalOperation = repository.updatedOperations.last
+
+        #expect(finalOperation?.status == .failed)
+        #expect(finalOperation?.retryCount == 4)
+    }
+
+    @Test
     func syncMarksOperationAsConflictWithoutRetrying() async throws {
         let repository = MockSyncOperationRepository()
         let service = MockSyncService()
