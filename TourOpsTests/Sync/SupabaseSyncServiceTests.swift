@@ -203,9 +203,11 @@ struct SupabaseSyncServiceTests {
 
         let read = try #require(environment.apiClient.requests.last)
 
+        let readURL = try #require(read.url)
+
         let components = try #require(
             URLComponents(
-                url: try #require(read.url),
+                url: readURL,
                 resolvingAgainstBaseURL: false
             )
         )
